@@ -1,0 +1,102 @@
+{
+  "settings": {
+    "siteName": "Sugarcube Corner",
+    "subtitle": "O guia autoral de bolos e confeitarias de Feira de Santana, por Kai Tavares",
+    "city": "Feira de Santana",
+    "state": "BA",
+    "approvalThreshold": 8.5,
+    "minTextureForApproval": 8.0,
+    "minCakesForConsolidatedRank": 2,
+    "weights": {
+      "flavor": 25,
+      "dough": 25,
+      "texture": 25,
+      "filling": 25
+    },
+    "kaiBio": {
+      "title": "Oi, eu sou Kai!",
+      "lead": "Adoro provar todo tipo de confeitaria, seja bolos, doces ou algo novo, sei de có todos os episódios de My Little Pony e estou em busca do melhor doce que já comi!",
+      "story": "Para mim, comer uma fatia de bolo nunca foi só 'comer um doce'. Minha percepção para texturas, temperatura, umidade da massa e ingredientes é extremamente atenta. Percebo no primeiro segundo se são bons materiais, se a massa passou do ponto no forno ou se o creme é bom de verdade.\n\nO nome Sugarcube Corner vem diretamente da confeitaria mais icônica de Ponyville em My Little Pony — um universo que amo e que inspira a estética doce e acolhedora deste espaço. Criei este guia porque Feira de Santana tem confeitarias incríveis, mas faltava um lugar sincero, sem publi disfarçada, onde cada bolo fosse avaliado pelo que realmente importa no garfo: Textura, Massa, Sabor e Recheio.",
+      "sensoryManifesto": [
+        {
+          "criterion": "Textura",
+          "icon": "sparkles",
+          "summary": "A sensação física na boca (mouthfeel). O contraste entre maciez, sedosidade e estrutura.",
+          "details": "Textura é um critério decisivo. Avalio se o creme é liso (sem cristais de açúcar ou grumos de amido), se a massa desmancha sem esfarelar seco e se todas as camadas conversam na mesma mordida."
+        },
+        {
+          "criterion": "Massa",
+          "icon": "layers",
+          "summary": "O coração estrutural do bolo: ponto de forno, alveolado, umidade e sabor próprio.",
+          "details": "Massa não é só 'suporte para recheio'. Sempre provo a massa pura primeiro. Precisa ter gosto real (baunilha de verdade, cacau alcalino, manteiga fresca), estrutura elástica na medida certa e umidade uniforme até a borda."
+        },
+        {
+          "criterion": "Sabor",
+          "icon": "heart",
+          "summary": "Equilíbrio de dulçor, profundidade aromática e ausência de gosto artificial.",
+          "details": "Doce que arde a garganta perde nota. Busco equilíbrio: acidez das frutas, amargor elegante do chocolate, notas tostadas e zero gosto residual de essência sintética ou margarina."
+        },
+        {
+          "criterion": "Recheio",
+          "icon": "droplet",
+          "summary": "Ponto de cocção, proporção em relação à massa e cremosidade estável.",
+          "details": "Nem puxa-puxa passado do ponto, nem líquido escorrendo pelo prato. O recheio precisa abraçar a fatia na proporção certa sem roubar a cena da massa."
+        }
+      ]
+    }
+  },
+  "bakeries": [
+    {
+      "id": "bak-1793109284477",
+      "slug": "coisas-de-mainha-centro",
+      "name": "Coisas de Mainha",
+      "neighborhood": "Centro",
+      "address": "Av. Maria Quitéria, 1960 - Centro, Feira de Santana",
+      "lat": -12.2545,
+      "lng": -38.955,
+      "instagram": "@coisasdemainha_fsa",
+      "whatsapp": "7530222018",
+      "openingHours": "12:20-19:00",
+      "priceRange": "$$",
+      "coverPhoto": "https://files.menudino.com/merchants/c5ea7680-2faf-11ee-9964-0022483864db/logo.png?v=1793109090044",
+      "description": "Local aconchegante, fui bem recepcionado e super bem localizado.",
+      "isFeaturedPartner": false,
+      "createdAt": "2026-10-27"
+    }
+  ],
+  "cakes": [
+    {
+      "id": "cake-1793109418571",
+      "bakeryId": "bak-1793109284477",
+      "slug": "bolo-completo-centro",
+      "name": "Bolo completo",
+      "category": "Fatia de Vitrine",
+      "flavorType": "Chocolate",
+      "photos": [
+        "https://files.menudino.com/merchants/c5ea7680-2faf-11ee-9964-0022483864db/items/images/large/1b9c577f-e588-4c54-bb72-5d269d73c15c_20251006210642.webp"
+      ],
+      "scoreFlavor": 9.0,
+      "scoreDough": 9.0,
+      "scoreTexture": 9.0,
+      "scoreFilling": 9.0,
+      "kaiVerdict": "O bolo estava macio, bastante recheio e a cobertura no sabor ideal",
+      "sensoryNotes": {
+        "crumbPoint": "Massa avaliada por Kai",
+        "moisture": "Equilibrada",
+        "sweetness": "Equilibrado",
+        "mouthfeel": "Avaliado no garfo"
+      },
+      "approxPrice": 22.0,
+      "visitedAt": "2026-10-27",
+      "reevaluatedAt": null,
+      "reevaluationNote": "",
+      "editionYear": 2026,
+      "reactions": {
+        "waterInMouth": 0,
+        "agreeWithKai": 0,
+        "wantToTry": 0
+      }
+    }
+  ],
+  "upcomingBakeries": []
+}

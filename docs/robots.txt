@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /kai_avalia/admin
+Sitemap: https://lierp.github.io/kai_avalia/sitemap.xml

@@ -1,0 +1,14 @@
+# Credenciais e chaves locais privadas (NUNCA versionar no GitHub)
+data/admin_credentials_local.txt
+data/session_secret.key
+data/backups/
+data/sugarcube.db
+data/sugarcube.db-journal
+data/sugarcube.db-wal
+data/sugarcube.db-shm
+
+# Cache do Python e arquivos de sistema
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
