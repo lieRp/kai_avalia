@@ -1503,7 +1503,7 @@ def build_github_pages(out_dir_str: str = "docs"):
         shutil.copytree(UPLOADS_DIR, out_dir / "uploads", dirs_exist_ok=True)
 
     base_path = os.environ.get("SUGARCUBE_BASE_PATH", "").rstrip("/")
-    site_url = (SITE_BASE_URL or "https://sugarcube-corner.github.io").rstrip("/")
+    site_url = (SITE_BASE_URL or "https://kaiavalia.com.br").rstrip("/")
     full_base_url = f"{site_url}{base_path}"
 
     def rewrite_subpath(html_bytes: bytes) -> bytes:

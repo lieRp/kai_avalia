@@ -267,7 +267,9 @@ async function commitStateToGitHub(commitMessage) {
    CARREGAMENTO DE DADOS PÚBLICOS (SERVIDOR LOCAL OU GITHUB PAGES ESTÁTICO)
    ========================================================================== */
 export async function refreshPublicData() {
-  const isGithubDomain = window.location.hostname.endsWith('.github.io');
+  const isGithubDomain =
+    window.location.hostname.endsWith('.github.io') ||
+    window.location.hostname.endsWith('kaiavalia.com.br');
 
   if (!isGithubDomain && !staticPagesMode) {
     try {
