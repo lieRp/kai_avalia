@@ -20,6 +20,7 @@ import re
 import secrets
 import shutil
 import sqlite3
+import subprocess
 import sys
 import threading
 import time
@@ -513,10 +514,42 @@ def get_public_data_payload() -> dict:
     }
 
 
-def sync_static_snapshot():
+_GIT_PUSH_LOCK = threading.Lock()
+
+
+def _auto_git_push_worker(commit_msg: str):
+    with _GIT_PUSH_LOCK:
+        try:
+            build_github_pages("docs", _skip_init=True)
+            subprocess.run(["git", "add", "-A"], cwd=str(BASE_DIR), check=False)
+            status = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=str(BASE_DIR),
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if status.stdout.strip():
+                subprocess.run(
+                    ["git", "commit", "-m", commit_msg],
+                    cwd=str(BASE_DIR),
+                    check=False
+                )
+                subprocess.run(
+                    ["git", "push", "origin", "main"],
+                    cwd=str(BASE_DIR),
+                    check=False
+                )
+                print(f"[AUTO-GIT] Alterações enviadas automaticamente para o GitHub ({commit_msg})!", flush=True)
+        except Exception as e:
+            print(f"[WARN] Falha no auto-push para o GitHub: {e}", flush=True)
+
+
+def sync_static_snapshot(auto_push: bool = False, commit_msg: str = "chore: auto-sync Sugarcube Corner"):
     """
     Sincroniza o estado público do banco SQLite com public/data/public.json e data/seed.json,
     permitindo que o site funcione 100% estático no GitHub Pages via git commit + git push.
+    Quando auto_push=True, dispara também o git commit + git push em background.
     """
     try:
         payload = get_public_data_payload()
@@ -525,6 +558,8 @@ def sync_static_snapshot():
         json_str = json.dumps(payload, ensure_ascii=False, indent=2)
         (pub_data_dir / "public.json").write_text(json_str, encoding="utf-8")
         SEED_PATH.write_text(json_str, encoding="utf-8")
+        if auto_push:
+            threading.Thread(target=_auto_git_push_worker, args=(commit_msg,), daemon=True).start()
     except Exception as e:
         print(f"[WARN] Falha ao sincronizar snapshot estático: {e}")
 
@@ -1179,7 +1214,7 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
             )
             conn.commit()
             conn.close()
-            sync_static_snapshot()
+            sync_static_snapshot(auto_push=True, commit_msg=f"feat(upcoming): {name}")
             return self.send_json({"ok": True, "id": up_id}, 201)
 
         m_promo = re.match(r"^/api/admin/suggestions/([a-zA-Z0-9_-]+)/promote$", path)
@@ -1208,7 +1243,7 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
             cur.execute("DELETE FROM public_suggestions WHERE id = ?", (sug_id,))
             conn.commit()
             conn.close()
-            sync_static_snapshot()
+            sync_static_snapshot(auto_push=True, commit_msg="feat(upcoming): sugestao aprovada")
             return self.send_json({"ok": True, "message": "Sugestão aprovada para a lista Em Breve!"})
 
         return self.send_json({"ok": False, "error": "Endpoint POST não encontrado."}, 404)
@@ -1267,7 +1302,7 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
             )
             conn.commit()
             conn.close()
-            sync_static_snapshot()
+            sync_static_snapshot(auto_push=True, commit_msg="feat(settings): atualizacao de configuracoes")
             return self.send_json({"ok": True, "settings": current})
 
         return self.send_json({"ok": False, "error": "Endpoint PUT não encontrado."}, 404)
@@ -1287,7 +1322,7 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
             conn.execute("DELETE FROM bakeries WHERE id = ?", (m_bak.group(1),))
             conn.commit()
             conn.close()
-            sync_static_snapshot()
+            sync_static_snapshot(auto_push=True, commit_msg="chore: remover confeitaria")
             return self.send_json({"ok": True, "message": "Confeitaria excluída."})
 
         m_cake = re.match(r"^/api/admin/cakes/([a-zA-Z0-9_-]+)$", path)
@@ -1297,7 +1332,7 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
             conn.execute("DELETE FROM cakes WHERE id = ?", (m_cake.group(1),))
             conn.commit()
             conn.close()
-            sync_static_snapshot()
+            sync_static_snapshot(auto_push=True, commit_msg="chore: remover avaliacao")
             return self.send_json({"ok": True, "message": "Avaliação excluída."})
 
         m_up = re.match(r"^/api/admin/upcoming/([a-zA-Z0-9_-]+)$", path)
@@ -1306,7 +1341,7 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
             conn.execute("DELETE FROM upcoming_bakeries WHERE id = ?", (m_up.group(1),))
             conn.commit()
             conn.close()
-            sync_static_snapshot()
+            sync_static_snapshot(auto_push=True, commit_msg="chore: remover item em-breve")
             return self.send_json({"ok": True})
 
         m_sug = re.match(r"^/api/admin/suggestions/([a-zA-Z0-9_-]+)$", path)
@@ -1393,7 +1428,7 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
 
         conn.commit()
         conn.close()
-        sync_static_snapshot()
+        sync_static_snapshot(auto_push=True, commit_msg=f"feat(bakery): {name}")
         return self.send_json({"ok": True, "id": bak_id, "slug": unique_slug})
 
     def _upsert_cake(self, body: dict, existing_id: str | None):
@@ -1482,17 +1517,18 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
 
         conn.commit()
         conn.close()
-        sync_static_snapshot()
+        sync_static_snapshot(auto_push=True, commit_msg=f"feat(cake): {name}")
         return self.send_json({"ok": True, "id": cake_id, "slug": unique_slug})
 
 
-def build_github_pages(out_dir_str: str = "docs"):
+def build_github_pages(out_dir_str: str = "docs", _skip_init: bool = False):
     """
     Gera o pacote 100% estático (HTML pré-renderizado com Open Graph + JSON + Assets)
     para publicação direta no GitHub Pages (via GitHub Actions ou pasta docs/).
     """
-    init_db(reset_to_clean=False)
-    sync_static_snapshot()
+    if not _skip_init:
+        init_db(reset_to_clean=False)
+        sync_static_snapshot(auto_push=False)
 
     out_dir = (BASE_DIR / out_dir_str).resolve()
     if out_dir.exists():
