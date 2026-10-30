@@ -1950,7 +1950,6 @@ async function renderAdminView() {
 
     return;
   }
-  }
 
   if (uiState.adminTab === 'community') {
     try {
