@@ -547,23 +547,32 @@ export async function loginAdmin(username, password) {
 }
 
 export async function loginAdminWithGitHub(repoFullName, token, branchInput = '') {
-  const cleanRepo = String(repoFullName || '')
+  let cleanRepo = String(repoFullName || '')
     .trim()
     .replace(/^https?:\/\/github\.com\//i, '')
     .replace(/\.git$/i, '')
     .replace(/^\/+|\/+$/g, '');
   const cleanToken = String(token || '').trim();
 
-  if (!cleanRepo.includes('/')) {
-    throw new Error('Informe o repositório no formato usuario/nome-do-repositorio.');
-  }
-  if (!cleanToken) {
-    throw new Error('Informe o seu Personal Access Token do GitHub.');
+  if (!cleanRepo || cleanRepo.toLowerCase() === 'kai' || cleanRepo.toLowerCase() === 'lierp') {
+    cleanRepo = 'lieRp/kai_avalia';
+  } else if (!cleanRepo.includes('/')) {
+    cleanRepo = `lieRp/${cleanRepo}`;
   }
 
-  const repoInfo = await githubApiRequest(`/repos/${cleanRepo}`, { token: cleanToken });
+  if (!cleanToken) {
+    throw new Error('Informe a sua senha de acesso.');
+  }
+
+  let repoInfo;
+  try {
+    repoInfo = await githubApiRequest(`/repos/${cleanRepo}`, { token: cleanToken });
+  } catch (err) {
+    throw new Error('Usuário ou senha incorretos. Verifique suas credenciais de acesso.');
+  }
+
   if (repoInfo.permissions && !repoInfo.permissions.push) {
-    throw new Error('Este Token não tem permissão de escrita (Contents: Read & Write) neste repositório.');
+    throw new Error('Esta senha não possui permissão de publicação neste guia.');
   }
 
   const targetBranch = String(branchInput || repoInfo.default_branch || 'main').trim();

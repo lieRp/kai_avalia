@@ -479,25 +479,25 @@ function renderHomeView() {
       <div class="container">
         <div class="section-header">
           <div>
-            <span class="eyebrow-tag"><span aria-hidden="true">🎈</span> Pódio Oficial • Edição 2026</span>
+            <span class="eyebrow-tag"><img src="/assets/mlp-twilight-star.png" alt="" aria-hidden="true" class="cutie-mini-icon" /> Pódio Oficial • Edição 2026</span>
             <h2 class="section-title">Top 3 Bolos de Feira de Santana</h2>
-            <p class="section-subtitle">Toque em um critério abaixo para reordenar o pódio instantaneamente:</p>
+            <p class="section-subtitle">Selecione um critério para reordenar o pódio:</p>
           </div>
           <div class="criteria-pill-bar" role="tablist" aria-label="Ordenar Top 3 por critério">
             <button type="button" class="criterion-sort-btn ${sortKey === 'finalScore' ? 'active' : ''}" data-home-crit="finalScore">
-              <span aria-hidden="true">🏆</span> Nota Geral
+              Nota Geral
             </button>
             <button type="button" class="criterion-sort-btn ${sortKey === 'scoreTexture' ? 'active' : ''}" data-home-crit="scoreTexture">
-              <span aria-hidden="true">🎈</span> Melhor Textura
+              Melhor Textura
             </button>
             <button type="button" class="criterion-sort-btn ${sortKey === 'scoreDough' ? 'active' : ''}" data-home-crit="scoreDough">
-              <span aria-hidden="true">🧁</span> Melhor Massa
+              Melhor Massa
             </button>
             <button type="button" class="criterion-sort-btn ${sortKey === 'scoreFlavor' ? 'active' : ''}" data-home-crit="scoreFlavor">
-              <span aria-hidden="true">🍓</span> Melhor Sabor
+              Melhor Sabor
             </button>
             <button type="button" class="criterion-sort-btn ${sortKey === 'scoreFilling' ? 'active' : ''}" data-home-crit="scoreFilling">
-              <span aria-hidden="true">🍯</span> Melhor Recheio
+              Melhor Recheio
             </button>
           </div>
         </div>
@@ -781,24 +781,24 @@ function renderRankingView(queryParams = {}) {
             <span class="form-label" style="display:block;margin-bottom:0.45rem;">Reordenar Ranking por Critério Individual:</span>
             <div class="criteria-pill-bar">
               <button type="button" class="criterion-sort-btn ${uiState.rankingSort === 'finalScore' ? 'active' : ''}" data-sort-crit="finalScore">
-                <span aria-hidden="true">🏆</span> Nota Final Ponderada
+                Nota Geral
               </button>
               <button type="button" class="criterion-sort-btn ${uiState.rankingSort === 'scoreTexture' ? 'active' : ''}" data-sort-crit="scoreTexture">
-                <span aria-hidden="true">🎈</span> Melhor Textura da Cidade
+                Melhor Textura
               </button>
               <button type="button" class="criterion-sort-btn ${uiState.rankingSort === 'scoreDough' ? 'active' : ''}" data-sort-crit="scoreDough">
-                <span aria-hidden="true">🧁</span> Melhor Massa e Ponto
+                Melhor Massa
               </button>
               <button type="button" class="criterion-sort-btn ${uiState.rankingSort === 'scoreFlavor' ? 'active' : ''}" data-sort-crit="scoreFlavor">
-                <span aria-hidden="true">🍓</span> Melhor Sabor
+                Melhor Sabor
               </button>
               <button type="button" class="criterion-sort-btn ${uiState.rankingSort === 'scoreFilling' ? 'active' : ''}" data-sort-crit="scoreFilling">
-                <span aria-hidden="true">🍯</span> Melhor Recheio
+                Melhor Recheio
               </button>
               ${
                 uiState.rankingTab === 'cakes'
                   ? `<button type="button" class="criterion-sort-btn ${uiState.rankingSort === 'priceAsc' ? 'active' : ''}" data-sort-crit="priceAsc">
-                      <span aria-hidden="true">💰</span> Menor Preço
+                      Menor Preço
                     </button>`
                   : ''
               }
@@ -1860,58 +1860,49 @@ async function renderAdminView() {
   });
 
   if (!isAdminLoggedIn()) {
-    const defaultGhRepo = detectDefaultGitHubRepo();
+    const defaultGhRepo = detectDefaultGitHubRepo() || 'lieRp/kai_avalia';
     const isStatic = isStaticPagesMode();
 
     mainEl.innerHTML = `
       <section class="section-block">
-        <div class="container" style="max-width:500px;">
-          <div class="detail-card">
-            <span class="eyebrow-tag"><span aria-hidden="true">🔒</span> ${isStatic ? 'Modo GitHub Pages (Publicação por Commit)' : 'Autenticação de Kai'}</span>
-            <h1 class="section-title" style="margin-bottom:0.4rem;">Painel de Kai Tavares</h1>
-
-            ${
-              !isStatic
-                ? `
-            <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:1.15rem;">
-              Servidor local detectado! Você pode entrar com a senha local (salva em <code>data/admin_credentials_local.txt</code>) ou conectar direto ao seu repositório GitHub.
-            </p>
-            <form id="admin-login-form" style="display:flex;flex-direction:column;gap:0.85rem;margin-bottom:1.5rem;">
-              <div class="form-group">
-                <label class="form-label" for="adm-user">Login Local</label>
-                <input type="text" id="adm-user" class="form-input" required autocomplete="username" placeholder="kai" value="kai" />
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="adm-pass">Senha Local</label>
-                <input type="password" id="adm-pass" class="form-input" required autocomplete="current-password" placeholder="••••••••" />
-              </div>
-              <button type="submit" class="btn btn-primary btn-full">Entrar no Servidor Local</button>
-            </form>
-            <hr style="border:none;border-top:1px solid var(--border-subtle);margin:1.25rem 0;" />
-            `
-                : ''
-            }
-
-            <div style="background:var(--bg-cream);border:1.5px solid var(--border-warm);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem;">
-              <strong style="display:block;font-size:0.9rem;color:var(--raspberry);margin-bottom:0.25rem;">
-                🚀 Publicar direto no GitHub Pages (sem precisar do PC ligado)
-              </strong>
-              <p style="font-size:0.82rem;color:var(--text-mocha);">
-                Conecte seu repositório e um <strong>Personal Access Token</strong> do GitHub (com permissão <code>Contents: Read and Write</code> em <a href="https://github.com/settings/tokens" target="_blank" rel="noopener" style="color:var(--raspberry);text-decoration:underline;">github.com/settings/tokens</a>). Cada alteração que Kai salvar fará o commit direto no GitHub!
+        <div class="container" style="max-width:440px;">
+          <div class="detail-card admin-auth-card">
+            <div style="text-align:center;margin-bottom:1.35rem;">
+              <span class="eyebrow-tag" style="justify-content:center;">
+                <img src="/assets/sugarcube-icon.png" alt="" class="cutie-mini-icon" /> Acesso Restrito
+              </span>
+              <h1 class="section-title" style="font-size:1.65rem;margin-bottom:0.35rem;">Painel de Kai</h1>
+              <p style="font-size:0.88rem;color:var(--text-mocha);margin:0 auto;max-width:320px;">
+                Informe suas credenciais para gerenciar o guia e publicar novas avaliações.
               </p>
             </div>
 
-            <form id="admin-github-login-form" style="display:flex;flex-direction:column;gap:0.85rem;">
+            <form id="admin-unified-login-form" style="display:flex;flex-direction:column;gap:1rem;">
               <div class="form-group">
-                <label class="form-label" for="adm-gh-repo">Repositório no GitHub (usuario/repositorio)</label>
-                <input type="text" id="adm-gh-repo" class="form-input" required placeholder="Ex: kai-tavares/sugarcube-corner" value="${escapeHTML(defaultGhRepo)}" />
+                <label class="form-label" for="adm-login-user">Usuário</label>
+                <input
+                  type="text"
+                  id="adm-login-user"
+                  class="form-input"
+                  required
+                  autocomplete="username"
+                  placeholder="Nome de usuário"
+                  value="${escapeHTML(defaultGhRepo)}"
+                />
               </div>
               <div class="form-group">
-                <label class="form-label" for="adm-gh-token">Token do GitHub (Personal Access Token)</label>
-                <input type="password" id="adm-gh-token" class="form-input" required autocomplete="off" placeholder="ghp_... ou github_pat_..." />
+                <label class="form-label" for="adm-login-pass">Senha</label>
+                <input
+                  type="password"
+                  id="adm-login-pass"
+                  class="form-input"
+                  required
+                  autocomplete="current-password"
+                  placeholder="••••••••••••••••"
+                />
               </div>
-              <button type="submit" class="btn ${isStatic ? 'btn-primary' : 'btn-secondary'} btn-full">
-                Conectar ao GitHub & Abrir Painel
+              <button type="submit" class="btn btn-primary btn-full" style="padding:0.75rem 1rem;font-size:0.95rem;margin-top:0.25rem;">
+                Entrar no Painel
               </button>
             </form>
           </div>
@@ -1919,35 +1910,46 @@ async function renderAdminView() {
       </section>
     `;
 
-    document.getElementById('admin-login-form')?.addEventListener('submit', async (e) => {
+    document.getElementById('admin-unified-login-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const u = document.getElementById('adm-user').value;
-      const p = document.getElementById('adm-pass').value;
+      const u = document.getElementById('adm-login-user').value.trim();
+      const p = document.getElementById('adm-login-pass').value.trim();
+      const btn = e.target.querySelector('button[type="submit"]');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Verificando...';
+      }
+
       try {
-        await loginAdmin(u, p);
+        showToast('Verificando credenciais...');
+        if (!isStatic && !p.startsWith('ghp_') && !p.startsWith('github_pat_')) {
+          try {
+            await loginAdmin(u, p);
+            updateHeaderAdminStatus();
+            showToast('Que bom ter você de volta, Kai!');
+            renderAdminView();
+            return;
+          } catch (_) {
+            // Continua para autenticação direta caso a senha não seja a local
+          }
+        }
+
+        await loginAdminWithGitHub(u, p);
         updateHeaderAdminStatus();
         showToast('Que bom ter você de volta, Kai!');
         renderAdminView();
       } catch (err) {
-        showToast(err.message, true);
+        showToast(err.message || 'Usuário ou senha incorretos.', true);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Entrar no Painel';
+        }
       }
     });
 
-    document.getElementById('admin-github-login-form')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const repo = document.getElementById('adm-gh-repo').value;
-      const tok = document.getElementById('adm-gh-token').value;
-      try {
-        showToast('Verificando permissão no repositório GitHub...');
-        await loginAdminWithGitHub(repo, tok);
-        updateHeaderAdminStatus();
-        showToast('Conectado ao GitHub! Alterações farão commit direto no repositório.');
-        renderAdminView();
-      } catch (err) {
-        showToast(err.message, true);
-      }
-    });
     return;
+  }
   }
 
   if (uiState.adminTab === 'community') {
