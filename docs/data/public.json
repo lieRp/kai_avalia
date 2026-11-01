@@ -106,7 +106,9 @@
       "name": "Bolo de pote 50%",
       "category": "Fatia de Vitrine",
       "flavorType": "",
-      "photos": [],
+      "photos": [
+        "/uploads/kai-1793559793661-img-0698.jpg"
+      ],
       "scoreFlavor": 3,
       "scoreDough": 6,
       "scoreTexture": 6,
