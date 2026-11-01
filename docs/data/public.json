@@ -100,38 +100,6 @@
   ],
   "cakes": [
     {
-      "id": "cake-1793109418571",
-      "bakeryId": "bak-1793109284477",
-      "slug": "bolo-completo-centro",
-      "name": "Bolo completo",
-      "category": "Fatia de Vitrine",
-      "flavorType": "Chocolate",
-      "photos": [
-        "https://files.menudino.com/merchants/c5ea7680-2faf-11ee-9964-0022483864db/items/images/large/1b9c577f-e588-4c54-bb72-5d269d73c15c_20251006210642.webp"
-      ],
-      "scoreFlavor": 9,
-      "scoreDough": 9,
-      "scoreTexture": 9,
-      "scoreFilling": 9,
-      "kaiVerdict": "O bolo estava macio, bastante recheio e a cobertura no sabor ideal",
-      "sensoryNotes": {
-        "crumbPoint": "Massa avaliada por Kai",
-        "moisture": "Equilibrada",
-        "sweetness": "Equilibrado",
-        "mouthfeel": "Avaliado no garfo"
-      },
-      "approxPrice": 22,
-      "visitedAt": "2026-10-27",
-      "reevaluatedAt": null,
-      "reevaluationNote": "",
-      "editionYear": 2026,
-      "reactions": {
-        "waterInMouth": 0,
-        "agreeWithKai": 0,
-        "wantToTry": 0
-      }
-    },
-    {
       "id": "cake-1793559565851",
       "bakeryId": "bak-1793559423575",
       "slug": "bolo-de-pote-50-muchila",
