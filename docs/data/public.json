@@ -5,7 +5,7 @@
     "city": "Feira de Santana",
     "state": "BA",
     "approvalThreshold": 8.5,
-    "minTextureForApproval": 8.0,
+    "minTextureForApproval": 8,
     "minCakesForConsolidatedRank": 2,
     "weights": {
       "flavor": 25,
@@ -62,6 +62,23 @@
       "description": "Local aconchegante, fui bem recepcionado e super bem localizado.",
       "isFeaturedPartner": false,
       "createdAt": "2026-10-27"
+    },
+    {
+      "id": "bak-1793559423575",
+      "slug": "nanda-confeiteira-muchila",
+      "name": "Nanda Confeiteira",
+      "neighborhood": "Muchila",
+      "address": "Rua doutor macario cerqueira",
+      "lat": -12.2545,
+      "lng": -38.955,
+      "instagram": "",
+      "whatsapp": "",
+      "openingHours": "",
+      "priceRange": "$",
+      "coverPhoto": "/uploads/kai-1793559374423-img-0697.jpg",
+      "description": "Em frente condomínio de wally",
+      "isFeaturedPartner": false,
+      "createdAt": "2026-11-01"
     }
   ],
   "cakes": [
@@ -75,10 +92,10 @@
       "photos": [
         "https://files.menudino.com/merchants/c5ea7680-2faf-11ee-9964-0022483864db/items/images/large/1b9c577f-e588-4c54-bb72-5d269d73c15c_20251006210642.webp"
       ],
-      "scoreFlavor": 9.0,
-      "scoreDough": 9.0,
-      "scoreTexture": 9.0,
-      "scoreFilling": 9.0,
+      "scoreFlavor": 9,
+      "scoreDough": 9,
+      "scoreTexture": 9,
+      "scoreFilling": 9,
       "kaiVerdict": "O bolo estava macio, bastante recheio e a cobertura no sabor ideal",
       "sensoryNotes": {
         "crumbPoint": "Massa avaliada por Kai",
@@ -86,7 +103,7 @@
         "sweetness": "Equilibrado",
         "mouthfeel": "Avaliado no garfo"
       },
-      "approxPrice": 22.0,
+      "approxPrice": 22,
       "visitedAt": "2026-10-27",
       "reevaluatedAt": null,
       "reevaluationNote": "",
@@ -98,5 +115,6 @@
       }
     }
   ],
-  "upcomingBakeries": []
+  "upcomingBakeries": [],
+  "publicSuggestions": []
 }
