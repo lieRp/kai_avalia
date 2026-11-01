@@ -61,7 +61,7 @@
       "coverPhoto": "https://files.menudino.com/merchants/c5ea7680-2faf-11ee-9964-0022483864db/logo.png?v=1793109090044",
       "description": "Local aconchegante, fui bem recepcionado e super bem localizado.",
       "isFeaturedPartner": false,
-      "createdAt": "2026-10-27"
+      "createdAt": "2026-11-01"
     },
     {
       "id": "bak-1793559423575",
@@ -106,14 +106,42 @@
       "name": "Bolo de pote 50%",
       "category": "Fatia de Vitrine",
       "flavorType": "",
-      "photos": [
-        "/uploads/kai-1793559793661-img-0698.jpg"
-      ],
+      "photos": [],
       "scoreFlavor": 3,
       "scoreDough": 6,
       "scoreTexture": 6,
       "scoreFilling": 1,
       "kaiVerdict": "A textura da recheio muito boa e molhadinha mas o amargo não é bom",
+      "sensoryNotes": {
+        "crumbPoint": "",
+        "mouthfeel": "",
+        "moisture": "",
+        "sweetness": ""
+      },
+      "approxPrice": 22,
+      "visitedAt": "2026-11-01",
+      "reevaluatedAt": null,
+      "reevaluationNote": "",
+      "editionYear": 2026,
+      "reactions": {
+        "waterInMouth": 0,
+        "agreeWithKai": 0,
+        "wantToTry": 0
+      }
+    },
+    {
+      "id": "cake-1793560236411",
+      "bakeryId": "bak-1793559423575",
+      "slug": "fatia-ferrero-muchila",
+      "name": "Fatia ferrero",
+      "category": "Fatia de Vitrine",
+      "flavorType": "",
+      "photos": [],
+      "scoreFlavor": 4.5,
+      "scoreDough": 4.5,
+      "scoreTexture": 4.5,
+      "scoreFilling": 5,
+      "kaiVerdict": "Massa não é tão macia quanto o bolo de pote \nRecheio com gosto de chocolate mas meio artificial",
       "sensoryNotes": {
         "crumbPoint": "",
         "mouthfeel": "",
