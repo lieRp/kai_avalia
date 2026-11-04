@@ -175,6 +175,36 @@
         "agreeWithKai": 0,
         "wantToTry": 0
       }
+    },
+    {
+      "id": "cake-1793755993269",
+      "bakeryId": "bak-1793755749135",
+      "slug": "fatia-alegria-noide",
+      "name": "Fatia alegria",
+      "category": "Fatia de Vitrine",
+      "flavorType": "",
+      "photos": [],
+      "scoreFlavor": 8,
+      "scoreDough": 4,
+      "scoreTexture": 5.5,
+      "scoreFilling": 10,
+      "kaiVerdict": "A massa esfarela na boca, pelo preço podia ser mais molhadinha, o recheio ameniza, o brigadeiro no ponto certo e com gosto certo sem ser amargo nem doce demais,",
+      "sensoryNotes": {
+        "crumbPoint": "",
+        "mouthfeel": "",
+        "moisture": "",
+        "sweetness": ""
+      },
+      "approxPrice": 22,
+      "visitedAt": "2026-11-04",
+      "reevaluatedAt": null,
+      "reevaluationNote": "",
+      "editionYear": 2026,
+      "reactions": {
+        "waterInMouth": 0,
+        "agreeWithKai": 0,
+        "wantToTry": 0
+      }
     }
   ],
   "upcomingBakeries": [],
