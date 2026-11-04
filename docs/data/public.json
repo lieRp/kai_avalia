@@ -96,6 +96,23 @@
       "description": "Em frente condomínio de wally",
       "isFeaturedPartner": false,
       "createdAt": "2026-11-01"
+    },
+    {
+      "id": "bak-1793755749135",
+      "slug": "pricila-diniz-noide",
+      "name": "Pricila diniz",
+      "neighborhood": "Noide",
+      "address": "Hiperideal",
+      "lat": -12.2545,
+      "lng": -38.955,
+      "instagram": "",
+      "whatsapp": "",
+      "openingHours": "",
+      "priceRange": "$$$",
+      "coverPhoto": "/uploads/kai-1793755718332-img-0743.jpg",
+      "description": "Fica no mercado",
+      "isFeaturedPartner": false,
+      "createdAt": "2026-11-04"
     }
   ],
   "cakes": [
