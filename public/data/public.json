@@ -547,6 +547,38 @@
         "agreeWithKai": 0,
         "wantToTry": 0
       }
+    },
+    {
+      "id": "cake-1793984299656",
+      "bakeryId": "bak-1793984103292",
+      "slug": "brownie-no-pote-centro",
+      "name": "Brownie no pote",
+      "category": "Fatia de Vitrine",
+      "flavorType": "",
+      "photos": [
+        "/uploads/kai-1793984294997-image.jpg"
+      ],
+      "scoreFlavor": 10,
+      "scoreDough": 9,
+      "scoreTexture": 10,
+      "scoreFilling": 9,
+      "kaiVerdict": "Brigadeiro muito bom porém bem doce\ntextura do brigadeiro muita boa\nMassa do brownie vem pouca \nBem recheado e não usam aquele creme sem gosto para fazer volume",
+      "sensoryNotes": {
+        "crumbPoint": "",
+        "mouthfeel": "",
+        "moisture": "",
+        "sweetness": ""
+      },
+      "approxPrice": 22,
+      "visitedAt": "2026-11-06",
+      "reevaluatedAt": null,
+      "reevaluationNote": "",
+      "editionYear": 2026,
+      "reactions": {
+        "waterInMouth": 0,
+        "agreeWithKai": 0,
+        "wantToTry": 0
+      }
     }
   ],
   "upcomingBakeries": [],
