@@ -105,14 +105,20 @@ export function renderCriteriaBarsHTML(cakeOrScores, weights = { flavor: 25, dou
       ${items
         .map((item) => {
           const pct = Math.min(100, Math.max(5, item.val * 10));
+          const tierClass =
+            item.val >= 8.0
+              ? 'score-tier-high'
+              : item.val >= 6.0
+              ? 'score-tier-mid'
+              : 'score-tier-low';
           return `
-            <div class="crit-bar-row">
+            <div class="crit-bar-row ${tierClass}">
               <div class="crit-bar-top">
                 <span><span aria-hidden="true">${item.emoji}</span> ${item.label} <small style="color:var(--text-muted);font-weight:500;">(peso ${item.weight}%)</small></span>
-                <span style="font-family:var(--font-mono);color:var(--raspberry);font-size:1.02rem;">${item.val.toFixed(1)} <small style="color:var(--text-muted);">/ 10</small></span>
+                <span class="crit-bar-score ${tierClass}" style="font-family:var(--font-mono);font-size:1.02rem;">${item.val.toFixed(1)} <small style="color:var(--text-muted);">/ 10</small></span>
               </div>
               <div class="crit-bar-track">
-                <div class="crit-bar-fill" style="width:${pct}%"></div>
+                <div class="crit-bar-fill ${tierClass}" style="width:${pct}%"></div>
               </div>
             </div>
           `;

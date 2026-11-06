@@ -46,7 +46,9 @@ import {
   optimizeAndUploadImage,
   rotateAndUploadImage,
   resolveDisplayImageUrl,
-  getRawGitHubUploadUrl
+  getRawGitHubUploadUrl,
+  geocodeFsaLocation,
+  resolveFsaCoordinates
 } from './store.js';
 
 import { renderRadarChartSVG, renderCriteriaBarsHTML } from './charts.js';
@@ -64,13 +66,16 @@ const uiState = {
   rankingYear: 'all',
   rankingSort: 'finalScore',
   rankingOnlyApproved: false,
+  rankingShowUnratedBakeries: false,
   visitorCustomWeights: null,
   showWeightSimulator: false,
   mapNeighborhood: 'all',
+  mapShowCatalogBakeries: true,
   adminTab: 'cakes',
   editingCakeId: null,
   editingBakeryId: null,
-  adminSuggestions: []
+  adminSuggestions: [],
+  adminBakerySearch: ''
 };
 
 let activeLeafletMap = null;
@@ -102,6 +107,130 @@ function escapeHTML(str) {
 
 function renderImageUrl(pathStr, fallback = '/assets/og-sugarcube.svg') {
   return escapeHTML(resolveDisplayImageUrl(pathStr, fallback));
+}
+
+function getScoreTierClass(val) {
+  const n = Number(val || 0);
+  if (n >= 8.0) return 'score-tier-high';
+  if (n >= 6.0) return 'score-tier-mid';
+  return 'score-tier-low';
+}
+
+function getCakeDisplayPhoto(cake) {
+  const ownPhoto = String(cake?.photos?.[0] || '').trim();
+  if (ownPhoto && !ownPhoto.includes('og-sugarcube.svg')) {
+    return {
+      url: renderImageUrl(ownPhoto),
+      isBakeryPhoto: false,
+      hasRealPhoto: true
+    };
+  }
+  const bakeryPhoto = String(cake?.bakery?.coverPhoto || '').trim();
+  if (bakeryPhoto && !bakeryPhoto.includes('og-sugarcube.svg')) {
+    return {
+      url: renderImageUrl(bakeryPhoto),
+      isBakeryPhoto: true,
+      hasRealPhoto: true
+    };
+  }
+  return {
+    url: renderImageUrl('/assets/og-sugarcube.svg'),
+    isBakeryPhoto: false,
+    hasRealPhoto: false
+  };
+}
+
+function buildSmartSensoryNotes(cake) {
+  const sn = cake?.sensoryNotes || {};
+  const isDefaultPlaceholder = (txt) => {
+    const clean = String(txt || '').trim();
+    return (
+      !clean ||
+      [
+        'Massa avaliada por Kai',
+        'Bem estruturada',
+        'Equilibrada',
+        'Equilibrado',
+        'Avaliado no garfo',
+        'Aveludada',
+        'Moderado'
+      ].includes(clean)
+    );
+  };
+
+  const sDough = Number(cake?.scoreDough || 0);
+  const sTex = Number(cake?.scoreTexture || 0);
+  const sFlav = Number(cake?.scoreFlavor || 0);
+  const sFill = Number(cake?.scoreFilling || 0);
+
+  const crumbPoint = !isDefaultPlaceholder(sn.crumbPoint)
+    ? sn.crumbPoint
+    : sDough >= 8.5
+    ? `Alveolado macio e ponto de forno exemplar (${sDough.toFixed(1)}/10)`
+    : sDough >= 7.0
+    ? `Boa estrutura de massa no garfo (${sDough.toFixed(1)}/10)`
+    : sDough >= 5.5
+    ? `Estrutura mediana na mordida (${sDough.toFixed(1)}/10)`
+    : `Ponto de atenção na estrutura/maciez da massa (${sDough.toFixed(1)}/10)`;
+
+  const moistureAvg = (sDough + sTex) / 2;
+  const moisture = !isDefaultPlaceholder(sn.moisture)
+    ? sn.moisture
+    : moistureAvg >= 8.0
+    ? 'Úmida na medida certa, sem esfarelar'
+    : moistureAvg >= 6.0
+    ? 'Umidade moderada no paladar'
+    : 'Ressalva de umidade percebida na mordida';
+
+  const mouthfeel = !isDefaultPlaceholder(sn.mouthfeel)
+    ? sn.mouthfeel
+    : sTex >= 8.5
+    ? `Textura aveludada e camadas bem integradas (${sTex.toFixed(1)}/10)`
+    : sTex >= 6.5
+    ? `Sensação agradável na boca (${sTex.toFixed(1)}/10)`
+    : `Textura com pontos de atenção (${sTex.toFixed(1)}/10)`;
+
+  const sweetAvg = (sFlav + sFill) / 2;
+  const sweetness = !isDefaultPlaceholder(sn.sweetness)
+    ? sn.sweetness
+    : sweetAvg >= 8.0
+    ? `Dulçor equilibrado e sabor autêntico (${sFlav.toFixed(1)}/10)`
+    : sweetAvg >= 6.0
+    ? `Equilíbrio regular entre massa e recheio (${sFlav.toFixed(1)}/10)`
+    : `Desvio no equilíbrio de sabor/dulçor (${sFlav.toFixed(1)}/10)`;
+
+  return { crumbPoint, moisture, mouthfeel, sweetness };
+}
+
+function openPhotoLightbox(src, caption = '') {
+  if (!src || src.includes('og-sugarcube.svg')) return;
+  let lb = document.getElementById('sugarcube-lightbox');
+  if (!lb) {
+    lb = document.createElement('div');
+    lb.id = 'sugarcube-lightbox';
+    lb.className = 'modal-backdrop lightbox-backdrop';
+    lb.innerHTML = `
+      <div class="lightbox-inner">
+        <button type="button" class="btn-icon-close lightbox-close-btn" id="close-lightbox-btn" aria-label="Fechar ampliação">✕</button>
+        <img id="lightbox-img" src="" alt="" />
+        <p id="lightbox-caption" class="lightbox-caption"></p>
+      </div>
+    `;
+    document.body.appendChild(lb);
+    lb.addEventListener('click', (e) => {
+      if (e.target === lb || e.target.id === 'close-lightbox-btn') {
+        lb.hidden = true;
+      }
+    });
+  }
+  const img = lb.querySelector('#lightbox-img');
+  const cap = lb.querySelector('#lightbox-caption');
+  if (img) {
+    img.src = src;
+    img.alt = caption || 'Foto ampliada';
+  }
+  if (cap) cap.textContent = caption || '';
+  lb.hidden = false;
 }
 
 function setupGlobalImageFallback() {
@@ -323,6 +452,8 @@ function renderCakeCardHTML(cake, rankIndex = null, highlightCrit = 'finalScore'
       ? 'Recheio'
       : 'Nota Final';
 
+  const photoInfo = getCakeDisplayPhoto(cake);
+
   return `
     <article class="cake-card ${cardRankClass}">
       <div class="card-media">
@@ -331,8 +462,13 @@ function renderCakeCardHTML(cake, rankIndex = null, highlightCrit = 'finalScore'
             ? `<span class="rank-medal ${medalClass}">#${rankIndex + 1}</span>`
             : ''
         }
+        ${
+          photoInfo.isBakeryPhoto
+            ? `<span class="card-photo-source-tag" title="Ilustrado com a foto de capa da confeitaria">📷 Foto da confeitaria</span>`
+            : ''
+        }
         <a href="/bolo/${encodeURIComponent(cake.slug)}">
-          <img src="${renderImageUrl(cake.photos?.[0])}" alt="Foto de ${escapeHTML(cake.name)} na confeitaria ${escapeHTML(cake.bakery?.name)}" loading="lazy" />
+          <img src="${photoInfo.url}" alt="Foto de ${escapeHTML(cake.name)} na confeitaria ${escapeHTML(cake.bakery?.name)}" loading="lazy" />
         </a>
         <div class="score-badge-floating">
           <span class="score-num">${mainDisplayScore}</span>
@@ -361,19 +497,19 @@ function renderCakeCardHTML(cake, rankIndex = null, highlightCrit = 'finalScore'
         <p class="card-quote"><span class="card-quote-text">"${escapeHTML(cake.kaiVerdict)}"</span></p>
 
         <div class="mini-criteria-grid">
-          <div class="mini-crit-box ${highlightCrit === 'scoreTexture' ? 'highlight-crit' : ''}">
+          <div class="mini-crit-box ${getScoreTierClass(cake.scoreTexture)} ${highlightCrit === 'scoreTexture' ? 'highlight-crit' : ''}">
             <span class="mini-crit-label">Textura</span>
             <span class="mini-crit-val">${Number(cake.scoreTexture).toFixed(1)}</span>
           </div>
-          <div class="mini-crit-box ${highlightCrit === 'scoreDough' ? 'highlight-crit' : ''}">
+          <div class="mini-crit-box ${getScoreTierClass(cake.scoreDough)} ${highlightCrit === 'scoreDough' ? 'highlight-crit' : ''}">
             <span class="mini-crit-label">Massa</span>
             <span class="mini-crit-val">${Number(cake.scoreDough).toFixed(1)}</span>
           </div>
-          <div class="mini-crit-box ${highlightCrit === 'scoreFlavor' ? 'highlight-crit' : ''}">
+          <div class="mini-crit-box ${getScoreTierClass(cake.scoreFlavor)} ${highlightCrit === 'scoreFlavor' ? 'highlight-crit' : ''}">
             <span class="mini-crit-label">Sabor</span>
             <span class="mini-crit-val">${Number(cake.scoreFlavor).toFixed(1)}</span>
           </div>
-          <div class="mini-crit-box ${highlightCrit === 'scoreFilling' ? 'highlight-crit' : ''}">
+          <div class="mini-crit-box ${getScoreTierClass(cake.scoreFilling)} ${highlightCrit === 'scoreFilling' ? 'highlight-crit' : ''}">
             <span class="mini-crit-label">Recheio</span>
             <span class="mini-crit-val">${Number(cake.scoreFilling).toFixed(1)}</span>
           </div>
@@ -406,7 +542,8 @@ function renderCakeCardHTML(cake, rankIndex = null, highlightCrit = 'finalScore'
 function renderHomeView() {
   const state = getState();
   const cakes = getEnrichedCakes();
-  const bakeries = getEnrichedBakeries().sort((a, b) => b.rankingScore - a.rankingScore);
+  const allBakeries = getEnrichedBakeries().sort((a, b) => b.rankingScore - a.rankingScore);
+  const evaluatedBakeries = allBakeries.filter((b) => b.cakesCount > 0);
 
   const sortKey = uiState.homeCriterion || 'finalScore';
   const sortedForPodium = [...cakes].sort((a, b) => {
@@ -420,11 +557,12 @@ function renderHomeView() {
     .slice(0, 6);
 
   const championCake = top3[0] || cakes[0];
+  const championPhoto = championCake ? getCakeDisplayPhoto(championCake) : null;
 
   updateSEOMeta({
     title: 'Início — Os Melhores Bolos de Feira de Santana',
     description: state.settings?.subtitle,
-    image: championCake?.photos?.[0] || '/assets/og-sugarcube.svg',
+    image: championPhoto?.url || '/assets/og-sugarcube.svg',
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'WebSite',
@@ -459,7 +597,7 @@ function renderHomeView() {
             </div>
             <div class="hero-cta-row">
               <a href="/ranking" class="btn btn-primary"><span aria-hidden="true">🏆</span> Ver Ranking (${cakes.length} ${cakes.length === 1 ? 'bolo' : 'bolos'})</a>
-              <a href="/mapa" class="btn btn-secondary"><span aria-hidden="true">🗺️</span> Mapa de Feira de Santana</a>
+              <a href="/mapa" class="btn btn-secondary"><span aria-hidden="true">🗺️</span> Mapa de Feira (${allBakeries.length} casas)</a>
               <a href="/sobre" class="btn btn-caramel"><img src="/assets/mlp-twilight-star.png" alt="" aria-hidden="true" class="cutie-mini-icon" /> Como Kai avalia</a>
             </div>
           </div>
@@ -469,7 +607,7 @@ function renderHomeView() {
               ? `
           <div class="hero-visual">
             <a href="/bolo/${encodeURIComponent(championCake.slug)}" class="hero-photo-frame">
-              <img src="${renderImageUrl(championCake.photos?.[0])}" alt="Foto destaque: ${escapeHTML(championCake.name)}" />
+              <img src="${championPhoto.url}" alt="Foto destaque: ${escapeHTML(championCake.name)}" />
             </a>
             <div class="hero-floating-card">
               <div>
@@ -551,13 +689,13 @@ function renderHomeView() {
           <div>
             <span class="eyebrow-tag"><span aria-hidden="true">🧁</span> Consistência da Vitrine</span>
             <h2 class="section-title">Melhores Confeitarias de Feira</h2>
-            <p class="section-subtitle">Ranking ponderado pelo número de bolos avaliados (mínimo de ${state.settings?.minCakesForConsolidatedRank || 2} avaliações para nota consolidada).</p>
+            <p class="section-subtitle">Confeitarias já avaliadas por Kai (mínimo de ${state.settings?.minCakesForConsolidatedRank || 2} avaliações para nota consolidada).</p>
           </div>
-          <a href="/ranking?tab=bakeries" class="btn btn-secondary btn-sm">Ver todas as confeitarias →</a>
+          <a href="/ranking?tab=bakeries" class="btn btn-secondary btn-sm">Ver todas (${evaluatedBakeries.length} avaliadas / ${allBakeries.length} no guia) →</a>
         </div>
 
         <div class="podium-grid">
-          ${bakeries
+          ${evaluatedBakeries
             .slice(0, 3)
             .map(
               (b, idx) => `
@@ -595,20 +733,53 @@ function renderHomeView() {
       </div>
     </section>
 
-    <!-- ÚLTIMAS AVALIAÇÕES DE KAI -->
+    <!-- ÚLTIMAS AVALIAÇÕES DE KAI (DIÁRIO DE DEGUSTAÇÃO COMPACTO) -->
     <section class="section-block">
       <div class="container">
         <div class="section-header">
           <div>
             <span class="eyebrow-tag"><span aria-hidden="true">🦄</span> Diário de Degustação</span>
-            <h2 class="section-title">Últimas Avaliações de Kai</h2>
-            <p class="section-subtitle">Fatias provadas recentemente nos bairros de Feira de Santana.</p>
+            <h2 class="section-title">Últimas Visitas & Notas de Kai</h2>
+            <p class="section-subtitle">Histórico cronológico das fatias provadas nos bairros de Feira de Santana.</p>
           </div>
-          <a href="/ranking" class="btn btn-primary btn-sm">Explorar todos e filtrar →</a>
+          <a href="/ranking" class="btn btn-primary btn-sm">Explorar ranking completo →</a>
         </div>
 
-        <div class="podium-grid">
-          ${latestCakes.map((cake) => renderCakeCardHTML(cake, null, 'finalScore')).join('')}
+        <div class="tasting-diary-list">
+          ${latestCakes
+            .map((cake) => {
+              const pInfo = getCakeDisplayPhoto(cake);
+              return `
+                <article class="tasting-diary-row">
+                  <a href="/bolo/${encodeURIComponent(cake.slug)}" class="tasting-diary-thumb">
+                    <img src="${pInfo.url}" alt="Foto de ${escapeHTML(cake.name)}" loading="lazy" />
+                  </a>
+                  <div class="tasting-diary-main">
+                    <div class="tasting-diary-meta">
+                      <span class="neighborhood-tag"><span aria-hidden="true">🗓️</span> ${formatDateBR(cake.latestVisit)}</span>
+                      <span class="neighborhood-tag"><span aria-hidden="true">📍</span> ${escapeHTML(cake.bakery?.neighborhood)}</span>
+                      <span style="font-size:0.78rem;color:var(--text-muted);">${escapeHTML(cake.category)} • <strong>${formatBRL(cake.approxPrice)}</strong></span>
+                    </div>
+                    <h3 class="tasting-diary-title">
+                      <a href="/bolo/${encodeURIComponent(cake.slug)}">${escapeHTML(cake.name)}</a>
+                      <small>na <a href="/confeitaria/${encodeURIComponent(cake.bakery?.slug)}">${escapeHTML(cake.bakery?.name)}</a></small>
+                    </h3>
+                    <p class="tasting-diary-verdict">"${escapeHTML(cake.kaiVerdict)}"</p>
+                  </div>
+                  <div class="tasting-diary-side">
+                    <div class="tasting-diary-score ${getScoreTierClass(cake.finalScore)}">
+                      <strong>${cake.finalScore.toFixed(1)}</strong>
+                      <span>Nota Final</span>
+                    </div>
+                    <div class="tasting-diary-actions">
+                      <button type="button" class="btn btn-secondary btn-sm js-open-story" data-cake-id="${escapeHTML(cake.id)}">📲 Story</button>
+                      <a href="/bolo/${encodeURIComponent(cake.slug)}" class="btn btn-primary btn-sm">Ver Ficha →</a>
+                    </div>
+                  </div>
+                </article>
+              `;
+            })
+            .join('')}
         </div>
       </div>
     </section>
@@ -698,7 +869,7 @@ function renderRankingView(queryParams = {}) {
       return diff !== 0 ? diff : b.finalScore - a.finalScore;
     });
 
-  const filteredBakeries = allBakeries
+  const matchingBakeries = allBakeries
     .filter((b) => {
       if (uiState.rankingOnlyApproved && !b.kaiApproved) return false;
       if (
@@ -719,6 +890,9 @@ function renderRankingView(queryParams = {}) {
       return true;
     })
     .sort((a, b) => {
+      if ((b.cakesCount > 0) !== (a.cakesCount > 0)) {
+        return b.cakesCount > 0 ? 1 : -1;
+      }
       const mapBakerySort = {
         finalScore: 'rankingScore',
         scoreTexture: 'avgTexture',
@@ -727,8 +901,17 @@ function renderRankingView(queryParams = {}) {
         scoreFilling: 'avgFilling'
       };
       const bKey = mapBakerySort[uiState.rankingSort] || 'rankingScore';
-      return Number(b[bKey] || 0) - Number(a[bKey] || 0);
+      const diff = Number(b[bKey] || 0) - Number(a[bKey] || 0);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name);
     });
+
+  const unratedMatchingCount = matchingBakeries.filter((b) => b.cakesCount === 0).length;
+  const hasActiveBakeryFilter =
+    Boolean(uiState.rankingSearch.trim()) || uiState.rankingNeighborhood !== 'all';
+  const filteredBakeries =
+    uiState.rankingShowUnratedBakeries || hasActiveBakeryFilter
+      ? matchingBakeries
+      : matchingBakeries.filter((b) => b.cakesCount > 0);
 
   updateSEOMeta({
     title: 'Ranking Completo de Bolos e Confeitarias em Feira de Santana',
@@ -928,42 +1111,55 @@ function renderRankingView(queryParams = {}) {
                 ${filteredBakeries
                   .map(
                     (b, idx) => `
-                  <article class="cake-card ${idx === 0 ? 'rank-1' : ''}">
+                  <article class="cake-card ${idx === 0 && b.cakesCount > 0 ? 'rank-1' : ''}">
                     <div class="card-media">
-                      <span class="rank-medal ${idx === 0 ? 'medal-1' : idx === 1 ? 'medal-2' : idx === 2 ? 'medal-3' : ''}">#${idx + 1}</span>
+                      ${
+                        b.cakesCount > 0
+                          ? `<span class="rank-medal ${idx === 0 ? 'medal-1' : idx === 1 ? 'medal-2' : idx === 2 ? 'medal-3' : ''}">#${idx + 1}</span>`
+                          : `<span class="rank-medal" style="background:rgba(42,20,32,0.75);font-size:0.72rem;padding:0.25rem 0.65rem;">Catálogo</span>`
+                      }
                       <a href="/confeitaria/${encodeURIComponent(b.slug)}">
                         <img src="${renderImageUrl(b.coverPhoto)}" alt="Foto da confeitaria ${escapeHTML(b.name)}" loading="lazy" />
                       </a>
                       <div class="score-badge-floating">
-                        <span class="score-num">${b.overallScore.toFixed(1)}</span>
-                        <span class="score-lbl">Média (${b.cakesCount})</span>
+                        <span class="score-num">${b.cakesCount > 0 ? b.overallScore.toFixed(1) : '—'}</span>
+                        <span class="score-lbl">${b.cakesCount > 0 ? `Média (${b.cakesCount})` : 'Em breve'}</span>
                       </div>
                     </div>
                     <div class="card-body">
                       <div class="card-meta-top">
                         <span class="neighborhood-tag"><span aria-hidden="true">📍</span> ${escapeHTML(b.neighborhood)}</span>
                         ${b.kaiApproved ? `<span class="kai-seal"><span aria-hidden="true">🎈</span> Aprovado por Kai</span>` : ''}
-                        ${!b.isConsolidated ? `<span class="stale-review-badge">${b.cakesCount} bolo avaliado (mín. ${state.settings?.minCakesForConsolidatedRank || 2})</span>` : ''}
+                        ${
+                          b.cakesCount === 0
+                            ? `<span class="stale-review-badge">No catálogo • Aguardando 1ª visita</span>`
+                            : !b.isConsolidated
+                            ? `<span class="stale-review-badge">${b.cakesCount} bolo avaliado (mín. ${state.settings?.minCakesForConsolidatedRank || 2})</span>`
+                            : ''
+                        }
                         ${b.isFeaturedPartner ? `<span class="partner-badge">Vitrine Parceira</span>` : ''}
                       </div>
                       <h3 class="card-title">
                         <a href="/confeitaria/${encodeURIComponent(b.slug)}">${escapeHTML(b.name)}</a>
                       </h3>
                       <p style="font-size:0.86rem;color:var(--text-mocha);">${escapeHTML(b.description)}</p>
+                      ${
+                        b.cakesCount > 0
+                          ? `
                       <div class="mini-criteria-grid">
-                        <div class="mini-crit-box ${uiState.rankingSort === 'scoreTexture' ? 'highlight-crit' : ''}">
+                        <div class="mini-crit-box ${getScoreTierClass(b.avgTexture)} ${uiState.rankingSort === 'scoreTexture' ? 'highlight-crit' : ''}">
                           <span class="mini-crit-label">Textura</span>
                           <span class="mini-crit-val">${b.avgTexture.toFixed(1)}</span>
                         </div>
-                        <div class="mini-crit-box ${uiState.rankingSort === 'scoreDough' ? 'highlight-crit' : ''}">
+                        <div class="mini-crit-box ${getScoreTierClass(b.avgDough)} ${uiState.rankingSort === 'scoreDough' ? 'highlight-crit' : ''}">
                           <span class="mini-crit-label">Massa</span>
                           <span class="mini-crit-val">${b.avgDough.toFixed(1)}</span>
                         </div>
-                        <div class="mini-crit-box ${uiState.rankingSort === 'scoreFlavor' ? 'highlight-crit' : ''}">
+                        <div class="mini-crit-box ${getScoreTierClass(b.avgFlavor)} ${uiState.rankingSort === 'scoreFlavor' ? 'highlight-crit' : ''}">
                           <span class="mini-crit-label">Sabor</span>
                           <span class="mini-crit-val">${b.avgFlavor.toFixed(1)}</span>
                         </div>
-                        <div class="mini-crit-box ${uiState.rankingSort === 'scoreFilling' ? 'highlight-crit' : ''}">
+                        <div class="mini-crit-box ${getScoreTierClass(b.avgFilling)} ${uiState.rankingSort === 'scoreFilling' ? 'highlight-crit' : ''}">
                           <span class="mini-crit-label">Recheio</span>
                           <span class="mini-crit-val">${b.avgFilling.toFixed(1)}</span>
                         </div>
@@ -972,6 +1168,9 @@ function renderRankingView(queryParams = {}) {
                         <span>Última visita: ${b.lastVisitedAt ? formatDateBR(b.lastVisitedAt) : '—'}</span>
                         ${b.isStale ? `<span class="stale-review-badge"><span aria-hidden="true">⏳</span> +6 meses</span>` : ''}
                       </div>
+                      `
+                          : `<p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem;">📍 ${escapeHTML(b.address)}</p>`
+                      }
                       <div class="card-footer">
                         <span><strong>${b.cakesCount}</strong> bolo(s) avaliado(s) • <strong>${escapeHTML(b.priceRange)}</strong></span>
                         <a href="/confeitaria/${encodeURIComponent(b.slug)}" class="btn btn-primary btn-sm">Abrir Confeitaria →</a>
@@ -981,16 +1180,34 @@ function renderRankingView(queryParams = {}) {
                 `
                   )
                   .join('')}
-              </div>`
+              </div>
+              ${
+                unratedMatchingCount > 0 && !hasActiveBakeryFilter
+                  ? `<div style="text-align:center;margin-top:1.75rem;">
+                      <button type="button" class="btn btn-secondary" id="toggle-unrated-bakeries-btn">
+                        ${
+                          uiState.rankingShowUnratedBakeries
+                            ? 'Ocultar confeitarias do catálogo ainda sem avaliação'
+                            : `🏪 Mostrar também ${unratedMatchingCount} confeitarias de Feira no catálogo (aguardando 1ª visita)`
+                        }
+                      </button>
+                    </div>`
+                  : ''
+              }`
             : `<div class="detail-card" style="text-align:center;padding:3rem 1.5rem;">
-                <h3>Nenhuma confeitaria cadastrada ainda.</h3>
-                <p style="color:var(--text-muted);margin:0.5rem 0 1.2rem;">Cadastre a primeira confeitaria de Feira de Santana no Painel de Kai!</p>
-                <a href="/admin" class="btn btn-primary">Ir para o Painel de Kai</a>
+                <h3>Nenhuma confeitaria encontrada com esses filtros.</h3>
+                <p style="color:var(--text-muted);margin:0.5rem 0 1.2rem;">Limpe os filtros ou explore todo o catálogo de confeitarias de Feira de Santana.</p>
+                <button type="button" class="btn btn-primary" id="empty-clear-btn">Limpar filtros</button>
               </div>`
         }
       </div>
     </section>
   `;
+
+  document.getElementById('toggle-unrated-bakeries-btn')?.addEventListener('click', () => {
+    uiState.rankingShowUnratedBakeries = !uiState.rankingShowUnratedBakeries;
+    renderRankingView();
+  });
 
   const searchInput = document.getElementById('f-search');
   if (searchInput) {
@@ -1131,13 +1348,13 @@ function renderBakeryDetailView(slug) {
         <div>
           <div class="detail-card">
             <div class="review-gallery-main">
-              <img src="${renderImageUrl(bakery.coverPhoto)}" alt="Foto de capa da confeitaria ${escapeHTML(bakery.name)}" />
+              <img src="${renderImageUrl(bakery.coverPhoto)}" alt="Foto de capa da confeitaria ${escapeHTML(bakery.name)}" class="js-lightbox-img" data-caption="${escapeHTML(bakery.name)} • ${escapeHTML(bakery.neighborhood)}" />
             </div>
 
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.65rem;">
               <span class="neighborhood-tag"><span aria-hidden="true">📍</span> ${escapeHTML(bakery.neighborhood)} • Feira de Santana</span>
               <span class="neighborhood-tag">Faixa: ${escapeHTML(bakery.priceRange)}</span>
-              <span class="neighborhood-tag">${bakery.cakesCount} bolo(s) avaliado(s)</span>
+              <span class="neighborhood-tag">${bakery.cakesCount > 0 ? `${bakery.cakesCount} bolo(s) avaliado(s)` : 'Catálogo de Feira • Aguardando 1ª visita'}</span>
               ${bakery.kaiApproved ? `<span class="kai-seal kai-seal-lg"><span aria-hidden="true">🎈</span> Confeitaria Aprovada por Kai</span>` : ''}
               ${bakery.isStale ? `<span class="stale-review-badge"><span aria-hidden="true">⏳</span> Última visita há mais de 6 meses (${formatDateBR(bakery.lastVisitedAt)})</span>` : ''}
               ${
@@ -1194,15 +1411,29 @@ function renderBakeryDetailView(slug) {
             <h2 class="section-title" style="margin-bottom:0.35rem;text-align:center;">
               Bolos Avaliados por Kai (${bakery.cakesCount})
             </h2>
-            <p class="section-subtitle" style="margin:0 auto 1.25rem;text-align:center;">
-              A média simples da ${escapeHTML(bakery.name)} é <strong>${bakery.overallScore.toFixed(1)}</strong> baseada nos ${bakery.cakesCount} bolo(s) abaixo:
-            </p>
-
-            <div class="podium-grid">
-              ${bakery.cakes.map((cake, idx) => renderCakeCardHTML(cake, idx, 'finalScore')).join('')}
-            </div>
+            ${
+              bakery.cakesCount > 0
+                ? `<p class="section-subtitle" style="margin:0 auto 1.25rem;text-align:center;">
+                    A média simples da ${escapeHTML(bakery.name)} é <strong>${bakery.overallScore.toFixed(1)}</strong> baseada nos ${bakery.cakesCount} bolo(s) abaixo:
+                  </p>
+                  <div class="podium-grid">
+                    ${bakery.cakes.map((cake, idx) => renderCakeCardHTML(cake, idx, 'finalScore')).join('')}
+                  </div>`
+                : `<div class="detail-card" style="text-align:center;padding:2rem 1.5rem;margin-top:0.75rem;">
+                    <p style="color:var(--text-mocha);margin-bottom:1rem;">
+                      Esta confeitaria já faz parte do catálogo de Feira de Santana da <strong>Sugarcube Corner</strong> e aguarda a primeira avaliação publicada por Kai.
+                    </p>
+                    <div style="display:flex;gap:0.6rem;justify-content:center;flex-wrap:wrap;">
+                      <a href="/em-breve#sugerir" class="btn btn-primary btn-sm">Pedir para Kai visitar e avaliar</a>
+                      <a href="/admin" class="btn btn-secondary btn-sm">Avaliar bolo desta casa (Kai)</a>
+                    </div>
+                  </div>`
+            }
           </div>
 
+          ${
+            allPhotos.length > 0
+              ? `
           <div class="detail-card" style="margin-top:2rem;">
             <h3 class="section-title" style="font-size:1.3rem;margin-bottom:1rem;text-align:center;">Galeria da Casa & Fatias</h3>
             <div class="bakery-gallery-grid">
@@ -1210,17 +1441,23 @@ function renderBakeryDetailView(slug) {
                 .map(
                   (url, i) => `
                 <div class="bakery-gallery-item">
-                  <img src="${renderImageUrl(url)}" alt="Foto ${i + 1} da confeitaria ${escapeHTML(bakery.name)}" loading="lazy" />
+                  <img src="${renderImageUrl(url)}" alt="Foto ${i + 1} da confeitaria ${escapeHTML(bakery.name)}" loading="lazy" class="js-lightbox-img" data-caption="${escapeHTML(bakery.name)} — Foto ${i + 1}" />
                 </div>
               `
                 )
                 .join('')}
             </div>
           </div>
+          `
+              : ''
+          }
         </div>
 
         <aside>
           <div class="detail-card" style="position:sticky;top:88px;">
+            ${
+              bakery.cakesCount > 0
+                ? `
             <div class="score-hero-banner">
               <div>
                 <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;opacity:0.85;">Média dos Bolos</span>
@@ -1238,10 +1475,25 @@ function renderBakeryDetailView(slug) {
             })}
 
             ${renderCriteriaBarsHTML(bakery, state.settings.weights)}
+            `
+                : `
+            <div class="score-hero-banner">
+              <div>
+                <span style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;opacity:0.85;">Catálogo de Feira</span>
+                <h3 style="font-family:var(--font-display);font-size:1.25rem;">Em Breve</h3>
+                <small style="opacity:0.8;">Aguardando 1ª avaliação de Kai</small>
+              </div>
+              <div class="score-big-number" style="font-size:1.8rem;">🧁</div>
+            </div>
+            <p style="font-size:0.88rem;color:var(--text-mocha);margin-bottom:1rem;">
+              Assim que Kai publicar a primeira avaliação de fatia ou bolo da <strong>${escapeHTML(bakery.name)}</strong>, o gráfico radar e as médias de Textura, Massa, Sabor e Recheio aparecerão aqui automaticamente!
+            </p>
+            `
+            }
 
             <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border-subtle);display:flex;flex-direction:column;gap:0.6rem;">
               <a href="https://wa.me/?text=${encodeURIComponent(
-                `Olha as notas da ${bakery.name} (${bakery.neighborhood}) no Sugarcube Corner por Kai Tavares: Nota Geral ${bakery.overallScore.toFixed(1)}/10! ${window.location.href}`
+                `Veja o perfil da ${bakery.name} (${bakery.neighborhood}) no Sugarcube Corner por Kai Tavares: ${window.location.href}`
               )}" target="_blank" rel="noopener" class="btn btn-secondary btn-full">
                 Compartilhar Confeitaria no WhatsApp
               </a>
@@ -1251,6 +1503,12 @@ function renderBakeryDetailView(slug) {
       </div>
     </div>
   `;
+
+  mainEl.querySelectorAll('.js-lightbox-img').forEach((img) => {
+    img.addEventListener('click', () => {
+      openPhotoLightbox(img.src, img.getAttribute('data-caption') || bakery.name);
+    });
+  });
 
   bindStoryButtons();
 }
@@ -1277,11 +1535,13 @@ function renderCakeDetailView(slug) {
 
   const sortedAll = [...cakes].sort((a, b) => b.finalScore - a.finalScore);
   const rankPosition = sortedAll.findIndex((c) => c.id === cake.id) + 1;
+  const photoInfo = getCakeDisplayPhoto(cake);
+  const smartSensory = buildSmartSensoryNotes(cake);
 
   updateSEOMeta({
     title: `${cake.name} (${cake.bakery?.name}) — Nota ${cake.finalScore.toFixed(1)}`,
     description: cake.kaiVerdict,
-    image: cake.photos?.[0]
+    image: photoInfo.url
   });
 
   const shareWhatsappText = `🧁 *${cake.name}* na *${cake.bakery?.name}* (${cake.bakery?.neighborhood} - Feira de Santana)\n🏆 Nota Final de Kai Tavares: *${cake.finalScore.toFixed(1)}/10*\n🎈 Textura: ${cake.scoreTexture.toFixed(1)} | 🧁 Massa: ${cake.scoreDough.toFixed(1)} | 🍓 Sabor: ${cake.scoreFlavor.toFixed(1)} | 🍯 Recheio: ${cake.scoreFilling.toFixed(1)}\n\nLeia a avaliação completa no Sugarcube Corner: ${window.location.href}`;
@@ -1298,8 +1558,13 @@ function renderCakeDetailView(slug) {
       <div class="review-detail-grid">
         <div>
           <article class="detail-card">
-            <div class="review-gallery-main">
-              <img id="main-cake-photo" src="${renderImageUrl(cake.photos?.[0])}" alt="Foto principal do bolo ${escapeHTML(cake.name)}" />
+            <div class="review-gallery-main" style="position:relative;">
+              ${
+                photoInfo.isBakeryPhoto
+                  ? `<span class="card-photo-source-tag" style="top:14px;right:14px;">📷 Foto da confeitaria</span>`
+                  : ''
+              }
+              <img id="main-cake-photo" src="${photoInfo.url}" alt="Foto principal do bolo ${escapeHTML(cake.name)}" class="js-lightbox-img" data-caption="${escapeHTML(cake.name)} • ${escapeHTML(cake.bakery?.name)}" />
             </div>
 
             ${
@@ -1365,24 +1630,24 @@ function renderCakeDetailView(slug) {
                 Raio-X Sensorial da Fatia
               </h2>
               <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem;">
-                Notas técnicas detalhadas sobre o comportamento físico da massa e do recheio no paladar:
+                Síntese técnica do comportamento físico da massa, textura e recheio no paladar:
               </p>
               <div class="sensory-xray-grid">
                 <div class="sensory-xray-item">
                   <span class="sensory-xray-label">Ponto & Estrutura da Massa</span>
-                  <span class="sensory-xray-val">${escapeHTML(cake.sensoryNotes?.crumbPoint || 'Bem estruturada')}</span>
+                  <span class="sensory-xray-val">${escapeHTML(smartSensory.crumbPoint)}</span>
                 </div>
                 <div class="sensory-xray-item">
                   <span class="sensory-xray-label">Umidade & Calda</span>
-                  <span class="sensory-xray-val">${escapeHTML(cake.sensoryNotes?.moisture || 'Equilibrada')}</span>
+                  <span class="sensory-xray-val">${escapeHTML(smartSensory.moisture)}</span>
                 </div>
                 <div class="sensory-xray-item">
                   <span class="sensory-xray-label">Sensação na Boca (Textura)</span>
-                  <span class="sensory-xray-val">${escapeHTML(cake.sensoryNotes?.mouthfeel || 'Aveludada')}</span>
+                  <span class="sensory-xray-val">${escapeHTML(smartSensory.mouthfeel)}</span>
                 </div>
                 <div class="sensory-xray-item">
-                  <span class="sensory-xray-label">Equilíbrio de Dulçor</span>
-                  <span class="sensory-xray-val">${escapeHTML(cake.sensoryNotes?.sweetness || 'Moderado')}</span>
+                  <span class="sensory-xray-label">Equilíbrio de Dulçor & Sabor</span>
+                  <span class="sensory-xray-val">${escapeHTML(smartSensory.sweetness)}</span>
                 </div>
               </div>
             </div>
@@ -1442,6 +1707,12 @@ function renderCakeDetailView(slug) {
     </div>
   `;
 
+  mainEl.querySelectorAll('.js-lightbox-img').forEach((img) => {
+    img.addEventListener('click', () => {
+      openPhotoLightbox(img.src, img.getAttribute('data-caption') || cake.name);
+    });
+  });
+
   mainEl.querySelectorAll('[data-photo-url]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const mainImg = document.getElementById('main-cake-photo');
@@ -1471,12 +1742,22 @@ function renderCakeDetailView(slug) {
    5. MAPA INTERATIVO DAS CONFEITARIAS DE FEIRA DE SANTANA (/mapa)
    ========================================================================== */
 function renderMapView() {
-  const bakeries = getEnrichedBakeries().sort((a, b) => b.rankingScore - a.rankingScore);
-  const neighborhoods = Array.from(new Set(bakeries.map((b) => b.neighborhood))).sort();
+  const allBakeries = getEnrichedBakeries().sort((a, b) => {
+    if ((b.cakesCount > 0) !== (a.cakesCount > 0)) {
+      return b.cakesCount > 0 ? 1 : -1;
+    }
+    if (b.cakesCount > 0 && a.cakesCount > 0) {
+      return b.rankingScore - a.rankingScore;
+    }
+    return a.name.localeCompare(b.name, 'pt-BR');
+  });
+  const neighborhoods = Array.from(new Set(allBakeries.map((b) => b.neighborhood))).sort();
+  const showCatalogOnMap = uiState.mapShowCatalog !== false;
 
-  const filtered = bakeries.filter(
-    (b) => uiState.mapNeighborhood === 'all' || b.neighborhood === uiState.mapNeighborhood
-  );
+  const filtered = allBakeries.filter((b) => {
+    if (!showCatalogOnMap && b.cakesCount === 0) return false;
+    return uiState.mapNeighborhood === 'all' || b.neighborhood === uiState.mapNeighborhood;
+  });
 
   updateSEOMeta({
     title: 'Mapa das Confeitarias de Feira de Santana',
@@ -1490,12 +1771,16 @@ function renderMapView() {
         <div class="section-header">
           <div>
             <span class="eyebrow-tag"><span aria-hidden="true">🗺️</span> Roteiro Doce • Feira de Santana - BA</span>
-            <h1 class="section-title">Mapa das Confeitarias Avaliadas</h1>
-            <p class="section-subtitle">Toque nos marcadores com as notas de Kai ou escolha um bairro ao lado.</p>
+            <h1 class="section-title">Mapa das Confeitarias de Feira</h1>
+            <p class="section-subtitle">Toque nos marcadores com as notas de Kai ou explore o catálogo completo por bairro.</p>
           </div>
-          <div>
-            <select id="map-neighborhood-select" class="form-select" style="min-width:220px;" aria-label="Filtrar mapa por bairro">
-              <option value="all">Todos os bairros (${bakeries.length})</option>
+          <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+            <label class="toggle-check" style="font-size:0.84rem;background:var(--bg-cream);padding:0.45rem 0.8rem;border-radius:999px;border:1px solid var(--border-warm);">
+              <input type="checkbox" id="map-show-catalog-check" ${showCatalogOnMap ? 'checked' : ''} />
+              <span>Mostrar catálogo completo (${allBakeries.length})</span>
+            </label>
+            <select id="map-neighborhood-select" class="form-select" style="min-width:210px;" aria-label="Filtrar mapa por bairro">
+              <option value="all">Todos os bairros (${neighborhoods.length})</option>
               ${neighborhoods
                 .map(
                   (n) =>
@@ -1511,8 +1796,7 @@ function renderMapView() {
             ${
               filtered.length === 0
                 ? `<div style="text-align:center;padding:2rem 1rem;color:var(--text-muted);">
-                    <p>Nenhuma confeitaria cadastrada ainda no mapa.</p>
-                    <p style="margin-top:0.75rem;"><a href="/admin" class="btn btn-primary btn-sm">Cadastrar no Painel de Kai</a></p>
+                    <p>Nenhuma confeitaria encontrada neste filtro.</p>
                   </div>`
                 : filtered
                     .map(
@@ -1520,7 +1804,11 @@ function renderMapView() {
                   <div class="map-bakery-item" data-lat="${b.lat}" data-lng="${b.lng}" data-id="${escapeHTML(b.id)}">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
                       <span class="neighborhood-tag">${escapeHTML(b.neighborhood)}</span>
-                      <span style="font-family:var(--font-mono);font-weight:700;color:var(--raspberry);font-size:1rem;">★ ${b.overallScore.toFixed(1)} (${b.cakesCount})</span>
+                      ${
+                        b.cakesCount > 0
+                          ? `<span style="font-family:var(--font-mono);font-weight:700;color:var(--raspberry);font-size:0.95rem;">★ ${b.overallScore.toFixed(1)} (${b.cakesCount})</span>`
+                          : `<span style="font-size:0.74rem;font-weight:700;color:var(--text-muted);background:var(--bg-brioche);padding:0.15rem 0.5rem;border-radius:999px;">Catálogo</span>`
+                      }
                     </div>
                     <h2 style="font-family:var(--font-display);font-size:1.05rem;">${escapeHTML(b.name)}</h2>
                     <p style="font-size:0.8rem;color:var(--text-muted);margin:0.2rem 0 0.5rem;">${escapeHTML(b.address)}</p>
@@ -1546,6 +1834,11 @@ function renderMapView() {
     renderMapView();
   });
 
+  document.getElementById('map-show-catalog-check')?.addEventListener('change', (e) => {
+    uiState.mapShowCatalog = e.target.checked;
+    renderMapView();
+  });
+
   setTimeout(() => {
     const mapContainer = document.getElementById('leaflet-map');
     if (!mapContainer || typeof window.L === 'undefined') return;
@@ -1566,11 +1859,15 @@ function renderMapView() {
     const markersById = {};
 
     filtered.forEach((b) => {
+      const hasReviews = b.cakesCount > 0;
+      const pinLabel = hasReviews
+        ? `${b.kaiApproved ? '🎈' : '🧁'} ${b.overallScore.toFixed(1)}`
+        : `🧁 Catálogo`;
       const icon = L.divIcon({
         className: 'custom-div-icon',
-        html: `<div class="sugarcube-map-pin">${b.kaiApproved ? '🎈' : '🧁'} ${b.overallScore.toFixed(1)}</div>`,
-        iconSize: [72, 32],
-        iconAnchor: [36, 16]
+        html: `<div class="sugarcube-map-pin ${hasReviews ? '' : 'pin-catalog'}">${pinLabel}</div>`,
+        iconSize: [hasReviews ? 72 : 86, 32],
+        iconAnchor: [hasReviews ? 36 : 43, 16]
       });
 
       const marker = L.marker([b.lat || -12.2545, b.lng || -38.955], { icon }).addTo(
@@ -1578,11 +1875,15 @@ function renderMapView() {
       );
 
       marker.bindPopup(`
-        <div style="font-family:'Plus Jakarta Sans',sans-serif;min-width:200px;">
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;min-width:205px;">
           <strong style="font-size:0.95rem;color:#2A1420;">${escapeHTML(b.name)}</strong><br/>
-          <span style="font-size:0.78rem;color:#785265;">${escapeHTML(b.neighborhood)} • Nota ${b.overallScore.toFixed(1)}/10 (${b.cakesCount} bolos)</span>
-          <p style="font-size:0.78rem;margin:6px 0;">${escapeHTML(b.openingHours)}</p>
-          <a href="/confeitaria/${encodeURIComponent(b.slug)}" style="display:inline-block;margin-top:4px;color:#C42865;font-weight:700;font-size:0.82rem;">Ver bolos avaliados →</a>
+          <span style="font-size:0.78rem;color:#785265;">${escapeHTML(b.neighborhood)} • ${
+        hasReviews
+          ? `Nota ${b.overallScore.toFixed(1)}/10 (${b.cakesCount} bolo${b.cakesCount > 1 ? 's' : ''})`
+          : 'Catálogo de Feira (Em breve)'
+      }</span>
+          <p style="font-size:0.78rem;margin:6px 0;">${escapeHTML(b.openingHours || b.address)}</p>
+          <a href="/confeitaria/${encodeURIComponent(b.slug)}" style="display:inline-block;margin-top:4px;color:#C42865;font-weight:700;font-size:0.82rem;">Ver perfil da confeitaria →</a>
         </div>
       `);
 
@@ -2051,22 +2352,24 @@ async function renderAdminView() {
 }
 
 function renderAdminCakesTab(state, cakes, editingCake) {
-  if (state.bakeries.length === 0) {
-    return `
-      <div class="detail-card" style="text-align:center;padding:2.5rem 1.5rem;">
-        <h2 style="font-family:var(--font-display);margin-bottom:0.5rem;">Cadastre primeiro uma Confeitaria!</h2>
-        <p style="color:var(--text-muted);margin-bottom:1.2rem;">
-          Para publicar uma avaliação de bolo, é necessário ter pelo menos uma confeitaria real cadastrada em Feira de Santana.
-        </p>
-        <button type="button" class="btn btn-primary" id="go-to-bakeries-tab">Ir para a Aba Confeitarias →</button>
-      </div>
-    `;
-  }
+  const enrichedBakeries = getEnrichedBakeries();
+  const evaluatedBakeries = enrichedBakeries
+    .filter((b) => b.cakesCount > 0)
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  const catalogBakeries = enrichedBakeries
+    .filter((b) => b.cakesCount === 0)
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
   const savedDraft = !editingCake ? loadCakeDraft() : null;
   const source = editingCake || savedDraft || {};
 
-  const defaultBakeryId = source.bakeryId || state.bakeries[0]?.id || '';
+  const defaultBakeryId =
+    source.bakeryId ||
+    evaluatedBakeries[0]?.id ||
+    catalogBakeries[0]?.id ||
+    '__new__';
+  const isNewBakerySelected = defaultBakeryId === '__new__';
+
   const sFlavor = source.scoreFlavor ?? 9.0;
   const sDough = source.scoreDough ?? 9.0;
   const sTexture = source.scoreTexture ?? 9.0;
@@ -2079,6 +2382,16 @@ function renderAdminCakesTab(state, cakes, editingCake) {
     scoreFilling: sFilling
   });
 
+  const hasOptionalDetailsFilled = Boolean(
+    source.flavorType ||
+      source.sensoryNotes?.crumbPoint ||
+      source.sensoryNotes?.mouthfeel ||
+      source.sensoryNotes?.moisture ||
+      source.sensoryNotes?.sweetness ||
+      source.reevaluatedAt ||
+      source.reevaluationNote
+  );
+
   return `
     <div class="review-detail-grid">
       <div class="detail-card">
@@ -2088,7 +2401,7 @@ function renderAdminCakesTab(state, cakes, editingCake) {
               ${editingCake ? `Editando: ${escapeHTML(editingCake.name)}` : 'Nova Avaliação de Bolo'}
             </h2>
             <small id="draft-status-indicator" style="color:var(--text-muted);">
-              ${savedDraft && !editingCake ? '💾 Rascunho recuperado automaticamente' : 'Rascunho salvo automaticamente enquanto você digita'}
+              ${savedDraft && !editingCake ? '💾 Rascunho recuperado automaticamente' : 'Cadastro rápido: escolha uma confeitaria da lista de Feira ou crie uma na hora'}
             </small>
           </div>
           <div style="display:flex;gap:0.4rem;">
@@ -2105,16 +2418,91 @@ function renderAdminCakesTab(state, cakes, editingCake) {
         <form id="admin-cake-form" style="display:flex;flex-direction:column;gap:0.95rem;">
           <input type="hidden" id="c-id" value="${escapeHTML(editingCake?.id || '')}" />
 
-          <div class="form-group">
-            <label class="form-label" for="c-bakery">Confeitaria *</label>
+          <div class="form-group" style="background:var(--bg-cream);padding:0.85rem;border-radius:var(--radius-sm);border:1.5px solid var(--border-warm);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.45rem;">
+              <label class="form-label" for="c-bakery" style="margin:0;">Confeitaria em Feira de Santana *</label>
+              <button type="button" class="btn btn-secondary btn-sm" id="c-quick-new-bakery-btn" style="padding:0.22rem 0.65rem;font-size:0.76rem;">
+                ➕ Não está na lista? Criar na hora
+              </button>
+            </div>
+
+            <input
+              type="search"
+              id="c-bakery-filter"
+              class="form-input"
+              placeholder="🔍 Digite para buscar entre as ${enrichedBakeries.length} confeitarias de Feira (nome ou bairro)..."
+              style="margin-bottom:0.45rem;font-size:0.85rem;padding:0.48rem 0.75rem;"
+            />
+
             <select id="c-bakery" class="form-select" required>
-              ${state.bakeries
-                .map(
-                  (b) =>
-                    `<option value="${escapeHTML(b.id)}" ${b.id === defaultBakeryId ? 'selected' : ''}>${escapeHTML(b.name)} (${escapeHTML(b.neighborhood)})</option>`
-                )
-                .join('')}
+              ${
+                evaluatedBakeries.length > 0
+                  ? `<optgroup label="⭐ Já Avaliadas por Kai (${evaluatedBakeries.length})">
+                      ${evaluatedBakeries
+                        .map(
+                          (b) =>
+                            `<option value="${escapeHTML(b.id)}" ${b.id === defaultBakeryId ? 'selected' : ''}>${escapeHTML(b.name)} — ${escapeHTML(b.neighborhood)}</option>`
+                        )
+                        .join('')}
+                    </optgroup>`
+                  : ''
+              }
+              ${
+                catalogBakeries.length > 0
+                  ? `<optgroup label="🏪 Catálogo de Feira de Santana (${catalogBakeries.length} pré-cadastradas)">
+                      ${catalogBakeries
+                        .map(
+                          (b) =>
+                            `<option value="${escapeHTML(b.id)}" ${b.id === defaultBakeryId ? 'selected' : ''}>${escapeHTML(b.name)} — ${escapeHTML(b.neighborhood)}</option>`
+                        )
+                        .join('')}
+                    </optgroup>`
+                  : ''
+              }
+              <optgroup label="✨ Nova Confeitaria">
+                <option value="__new__" ${isNewBakerySelected ? 'selected' : ''}>➕ Outra Confeitaria (Cadastrar agora junto com o bolo)</option>
+              </optgroup>
             </select>
+
+            <div id="c-new-bakery-box" style="display:${isNewBakerySelected ? 'grid' : 'none'};grid-template-columns:1fr 1fr;gap:0.65rem;margin-top:0.75rem;padding-top:0.75rem;border-top:1px dashed var(--border-warm);">
+              <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label" for="c-new-bak-name">Nome da Nova Confeitaria *</label>
+                <input type="text" id="c-new-bak-name" class="form-input" placeholder="Ex: Atelier Doce Feira" value="${escapeHTML(source.newBakery?.name || '')}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="c-new-bak-neigh">Bairro em Feira *</label>
+                <input type="text" id="c-new-bak-neigh" class="form-input" list="fsa-neighborhoods-inline" placeholder="Ex: Santa Mônica" value="${escapeHTML(source.newBakery?.neighborhood || '')}" />
+                <datalist id="fsa-neighborhoods-inline">
+                  <option value="Santa Mônica"></option>
+                  <option value="Kalilândia"></option>
+                  <option value="São João"></option>
+                  <option value="Capuchinhos"></option>
+                  <option value="SIM"></option>
+                  <option value="Centro"></option>
+                  <option value="Ponto Central"></option>
+                  <option value="Fraga Maia"></option>
+                  <option value="Cidade Nova"></option>
+                  <option value="Getúlio Vargas"></option>
+                  <option value="Nóide Cerqueira"></option>
+                  <option value="Muchila"></option>
+                  <option value="Brasília"></option>
+                  <option value="Caseb"></option>
+                  <option value="Tomba"></option>
+                </datalist>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="c-new-bak-price">Faixa de Preço</label>
+                <select id="c-new-bak-price" class="form-select">
+                  <option value="$">$ (Econômico)</option>
+                  <option value="$$" selected>$$ (Moderado)</option>
+                  <option value="$$$">$$$ (Premium)</option>
+                </select>
+              </div>
+              <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label" for="c-new-bak-addr">Endereço / Referência (opcional — o GPS do bairro é calculado sozinho)</label>
+                <input type="text" id="c-new-bak-addr" class="form-input" placeholder="Ex: Av. Getúlio Vargas, próximo ao..." value="${escapeHTML(source.newBakery?.address || '')}" />
+              </div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -2122,7 +2510,7 @@ function renderAdminCakesTab(state, cakes, editingCake) {
             <input type="text" id="c-name" class="form-input" required placeholder="Ex: Fatia Red Velvet com Cream Cheese" value="${escapeHTML(source.name || '')}" />
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+          <div style="display:grid;grid-template-columns:1.2fr 0.8fr 1fr;gap:0.75rem;">
             <div class="form-group">
               <label class="form-label" for="c-category">Categoria / Formato</label>
               <input type="text" id="c-category" class="form-input" list="category-presets" value="${escapeHTML(source.category || 'Fatia de Vitrine')}" />
@@ -2136,8 +2524,12 @@ function renderAdminCakesTab(state, cakes, editingCake) {
               </datalist>
             </div>
             <div class="form-group">
-              <label class="form-label" for="c-flavor">Família de Sabor</label>
-              <input type="text" id="c-flavor" class="form-input" placeholder="Ex: Pistache & Frutas Vermelhas" value="${escapeHTML(source.flavorType || '')}" />
+              <label class="form-label" for="c-price">Preço (R$)</label>
+              <input type="number" step="0.50" id="c-price" class="form-input" value="${source.approxPrice ?? 22}" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="c-date">Data da Visita</label>
+              <input type="date" id="c-date" class="form-input" value="${source.visitedAt || new Date().toISOString().slice(0, 10)}" />
             </div>
           </div>
 
@@ -2187,51 +2579,6 @@ function renderAdminCakesTab(state, cakes, editingCake) {
             <textarea id="c-verdict" rows="4" class="form-textarea" required placeholder="Descreva o ponto da massa, a textura do creme, o equilíbrio do açúcar...">${escapeHTML(source.kaiVerdict || '')}</textarea>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-            <div class="form-group">
-              <label class="form-label" for="c-crumb">Ponto da Massa (Raio-X)</label>
-              <input type="text" id="c-crumb" class="form-input" placeholder="Ex: Alveolado macio e úmido" value="${escapeHTML(source.sensoryNotes?.crumbPoint || '')}" />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="c-mouthfeel">Sensação na Boca / Textura</label>
-              <input type="text" id="c-mouthfeel" class="form-input" placeholder="Ex: Creme aveludado sem grumos" value="${escapeHTML(source.sensoryNotes?.mouthfeel || '')}" />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="c-moisture">Umidade</label>
-              <input type="text" id="c-moisture" class="form-input" placeholder="Ex: Molhadinho sem desmanchar" value="${escapeHTML(source.sensoryNotes?.moisture || '')}" />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="c-sweetness">Nível de Dulçor</label>
-              <input type="text" id="c-sweetness" class="form-input" placeholder="Ex: Equilibrado pela fruta" value="${escapeHTML(source.sensoryNotes?.sweetness || '')}" />
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;">
-            <div class="form-group">
-              <label class="form-label" for="c-price">Preço Aprox. (R$)</label>
-              <input type="number" step="0.50" id="c-price" class="form-input" value="${source.approxPrice ?? 22}" />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="c-date">Data da Visita</label>
-              <input type="date" id="c-date" class="form-input" value="${source.visitedAt || new Date().toISOString().slice(0, 10)}" />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="c-year">Edição Anual</label>
-              <input type="number" id="c-year" class="form-input" value="${source.editionYear || 2026}" />
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 2fr;gap:0.75rem;">
-            <div class="form-group">
-              <label class="form-label" for="c-reeval-date">Reavaliado em (opcional)</label>
-              <input type="date" id="c-reeval-date" class="form-input" value="${source.reevaluatedAt || ''}" />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="c-reeval-note">Nota da Reavaliação</label>
-              <input type="text" id="c-reeval-note" class="form-input" placeholder="Ex: Nova visita após 2 meses e a massa subiu de nota!" value="${escapeHTML(source.reevaluationNote || '')}" />
-            </div>
-          </div>
-
           <div class="form-group">
             <label class="form-label">Foto Real do Bolo (Celular ou Computador)</label>
             <div class="admin-photo-uploader">
@@ -2242,7 +2589,7 @@ function renderAdminCakesTab(state, cakes, editingCake) {
                   alt="Prévia da foto do bolo"
                 />
                 <span class="admin-photo-status" id="c-photo-status">
-                  ${source.photos?.[0] ? '✓ Foto pronta para publicação' : 'Sem foto própria (usará ilustração padrão)'}
+                  ${source.photos?.[0] ? '✓ Foto pronta para publicação' : 'Sem foto própria (usará foto da confeitaria ou ilustração)'}
                 </span>
               </div>
               <div class="admin-photo-controls">
@@ -2273,16 +2620,69 @@ function renderAdminCakesTab(state, cakes, editingCake) {
                 <small style="color:var(--text-muted);font-size:0.76rem;display:block;">
                   A imagem é otimizada automaticamente e exibida na hora. Se a foto sair deitada do celular, toque em <strong>Girar 90°</strong>.
                 </small>
+              </div>
+            </div>
+          </div>
+
+          <details class="admin-optional-details" ${hasOptionalDetailsFilled ? 'open' : ''}>
+            <summary>
+              <span>✨ Detalhes Técnicos Opcionais (Raio-X Sensorial, Família de Sabor e Reavaliação)</span>
+              <small>Se deixar em branco, o Raio-X é gerado automaticamente pelas notas</small>
+            </summary>
+            <div class="admin-optional-body">
+              <div style="display:grid;grid-template-columns:2fr 1fr;gap:0.75rem;">
+                <div class="form-group">
+                  <label class="form-label" for="c-flavor">Família de Sabor (opcional)</label>
+                  <input type="text" id="c-flavor" class="form-input" placeholder="Ex: Pistache & Frutas Vermelhas" value="${escapeHTML(source.flavorType || '')}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="c-year">Edição Anual</label>
+                  <input type="number" id="c-year" class="form-input" value="${source.editionYear || 2026}" />
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                <div class="form-group">
+                  <label class="form-label" for="c-crumb">Ponto da Massa (Raio-X)</label>
+                  <input type="text" id="c-crumb" class="form-input" placeholder="Automático pelas notas se vazio" value="${escapeHTML(source.sensoryNotes?.crumbPoint || '')}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="c-mouthfeel">Sensação na Boca / Textura</label>
+                  <input type="text" id="c-mouthfeel" class="form-input" placeholder="Automático pelas notas se vazio" value="${escapeHTML(source.sensoryNotes?.mouthfeel || '')}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="c-moisture">Umidade</label>
+                  <input type="text" id="c-moisture" class="form-input" placeholder="Automático pelas notas se vazio" value="${escapeHTML(source.sensoryNotes?.moisture || '')}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="c-sweetness">Equilíbrio & Dulçor</label>
+                  <input type="text" id="c-sweetness" class="form-input" placeholder="Automático pelas notas se vazio" value="${escapeHTML(source.sensoryNotes?.sweetness || '')}" />
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 2fr;gap:0.75rem;">
+                <div class="form-group">
+                  <label class="form-label" for="c-reeval-date">Reavaliado em (opcional)</label>
+                  <input type="date" id="c-reeval-date" class="form-input" value="${source.reevaluatedAt || ''}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="c-reeval-note">Nota da Reavaliação</label>
+                  <input type="text" id="c-reeval-note" class="form-input" placeholder="Ex: Nova visita após 2 meses e a massa subiu de nota!" value="${escapeHTML(source.reevaluationNote || '')}" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="c-photo-url">Link / Caminho Manual da Foto (avançado)</label>
                 <input
                   type="text"
                   id="c-photo-url"
                   class="form-input"
-                  placeholder="Ou cole o link / caminho da imagem (/uploads/...)"
+                  placeholder="Preenchido automaticamente ao enviar foto (/uploads/...)"
                   value="${escapeHTML(source.photos?.[0] || '')}"
                 />
               </div>
             </div>
-          </div>
+          </details>
 
           <div style="display:flex;gap:0.65rem;flex-wrap:wrap;">
             <button type="button" class="btn btn-caramel" id="preview-admin-story-btn">
@@ -2308,7 +2708,7 @@ function renderAdminCakesTab(state, cakes, editingCake) {
                     (c) => `
                   <div class="detail-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">
                     <div style="display:flex;gap:0.75rem;align-items:center;min-width:200px;flex:1;">
-                      <img src="${renderImageUrl(c.photos?.[0])}" alt="Foto de ${escapeHTML(c.name)}" style="width:60px;height:60px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border-warm);" />
+                      <img src="${getCakeDisplayPhoto(c).url}" alt="Foto de ${escapeHTML(c.name)}" style="width:60px;height:60px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border-warm);" />
                       <div>
                         <strong style="font-size:0.95rem;display:block;">${escapeHTML(c.name)}</strong>
                         <small style="color:var(--text-muted);">${escapeHTML(c.bakery?.name)} • Nota <strong>${c.finalScore.toFixed(1)}</strong> (Tex: ${c.scoreTexture.toFixed(1)} | Mas: ${c.scoreDough.toFixed(1)})</small>
@@ -2330,6 +2730,13 @@ function renderAdminCakesTab(state, cakes, editingCake) {
 }
 
 function renderAdminBakeriesTab(state, bakeries, editingBakery) {
+  const sortedBakeries = [...bakeries].sort((a, b) => {
+    if ((b.cakesCount > 0) !== (a.cakesCount > 0)) {
+      return b.cakesCount > 0 ? 1 : -1;
+    }
+    return a.name.localeCompare(b.name, 'pt-BR');
+  });
+
   return `
     <div class="review-detail-grid">
       <div class="detail-card">
@@ -2355,17 +2762,25 @@ function renderAdminBakeriesTab(state, bakeries, editingBakery) {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
             <div class="form-group">
               <label class="form-label" for="b-neighborhood">Bairro (Feira de Santana) *</label>
-              <input type="text" id="b-neighborhood" class="form-input" required list="fsa-neighborhoods" value="${escapeHTML(editingBakery?.neighborhood || '')}" placeholder="Ex: Kalilândia" />
+              <input type="text" id="b-neighborhood" class="form-input" required list="fsa-neighborhoods" value="${escapeHTML(editingBakery?.neighborhood || '')}" placeholder="Ex: Santa Mônica" />
               <datalist id="fsa-neighborhoods">
-                <option value="Kalilândia"></option>
                 <option value="Santa Mônica"></option>
+                <option value="Kalilândia"></option>
                 <option value="São João"></option>
                 <option value="Capuchinhos"></option>
                 <option value="SIM"></option>
                 <option value="Centro"></option>
+                <option value="Ponto Central"></option>
+                <option value="Fraga Maia"></option>
                 <option value="Cidade Nova"></option>
                 <option value="Getúlio Vargas"></option>
+                <option value="Nóide Cerqueira"></option>
+                <option value="Muchila"></option>
                 <option value="Brasília"></option>
+                <option value="Caseb"></option>
+                <option value="Tomba"></option>
+                <option value="Sobradinho"></option>
+                <option value="Mangabeira"></option>
               </datalist>
             </div>
 
@@ -2400,14 +2815,22 @@ function renderAdminBakeriesTab(state, bakeries, editingBakery) {
             <input type="text" id="b-hours" class="form-input" value="${escapeHTML(editingBakery?.openingHours || '')}" placeholder="Ex: Ter a Dom: 13h às 20h" />
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-            <div class="form-group">
-              <label class="form-label" for="b-lat">Latitude (Mapa Feira)</label>
-              <input type="number" step="0.0001" id="b-lat" class="form-input" value="${editingBakery?.lat ?? -12.2545}" />
+          <div style="background:var(--bg-cream);padding:0.8rem;border-radius:var(--radius-sm);border:1px solid var(--border-warm);">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;">
+              <span style="font-size:0.82rem;font-weight:700;color:var(--text-espresso);">Localização no Mapa de Feira</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="b-geocode-btn" style="padding:0.25rem 0.65rem;font-size:0.76rem;">
+                📍 Buscar GPS pelo Endereço/Bairro
+              </button>
             </div>
-            <div class="form-group">
-              <label class="form-label" for="b-lng">Longitude (Mapa Feira)</label>
-              <input type="number" step="0.0001" id="b-lng" class="form-input" value="${editingBakery?.lng ?? -38.955}" />
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+              <div class="form-group">
+                <label class="form-label" for="b-lat">Latitude</label>
+                <input type="number" step="0.0001" id="b-lat" class="form-input" value="${editingBakery?.lat ?? -12.2545}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="b-lng">Longitude</label>
+                <input type="number" step="0.0001" id="b-lng" class="form-input" value="${editingBakery?.lng ?? -38.955}" />
+              </div>
             </div>
           </div>
 
@@ -2480,24 +2903,37 @@ function renderAdminBakeriesTab(state, bakeries, editingBakery) {
       </div>
 
       <div>
-        <h3 style="font-family:var(--font-display);font-size:1.25rem;margin-bottom:0.85rem;">
-          Confeitarias Cadastradas (${bakeries.length})
-        </h3>
-        <div style="display:flex;flex-direction:column;gap:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.85rem;">
+          <h3 style="font-family:var(--font-display);font-size:1.25rem;margin:0;">
+            Confeitarias Cadastradas (${bakeries.length})
+          </h3>
+          <input
+            type="search"
+            id="adm-bakery-search"
+            class="form-input"
+            placeholder="🔍 Buscar confeitaria ou bairro..."
+            style="max-width:250px;padding:0.42rem 0.75rem;font-size:0.84rem;"
+          />
+        </div>
+        <div id="adm-bakeries-list" style="display:flex;flex-direction:column;gap:0.75rem;max-height:760px;overflow-y:auto;padding-right:0.25rem;">
           ${
-            bakeries.length === 0
+            sortedBakeries.length === 0
               ? `<p style="color:var(--text-muted);">Nenhuma confeitaria cadastrada ainda.</p>`
-              : bakeries
+              : sortedBakeries
                   .map(
                     (b) => `
-                  <div class="detail-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                  <div class="detail-card js-adm-bakery-card" data-search="${escapeHTML((b.name + ' ' + b.neighborhood + ' ' + b.address).toLowerCase())}" style="padding:0.9rem;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">
                     <div style="display:flex;gap:0.75rem;align-items:center;min-width:200px;flex:1;">
-                      <img src="${renderImageUrl(b.coverPhoto)}" alt="Foto de ${escapeHTML(b.name)}" style="width:60px;height:60px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border-warm);" />
+                      <img src="${renderImageUrl(b.coverPhoto)}" alt="Foto de ${escapeHTML(b.name)}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border-warm);" />
                       <div>
-                        <strong style="font-size:0.98rem;">${escapeHTML(b.name)}</strong>
+                        <strong style="font-size:0.96rem;">${escapeHTML(b.name)}</strong>
                         <span class="neighborhood-tag" style="margin-left:0.4rem;">${escapeHTML(b.neighborhood)}</span>
                         <small style="display:block;color:var(--text-muted);margin-top:0.2rem;">
-                          Média: <strong>${b.overallScore.toFixed(1)}</strong> (${b.cakesCount} bolo(s) avaliado(s))
+                          ${
+                            b.cakesCount > 0
+                              ? `⭐ Média: <strong>${b.overallScore.toFixed(1)}</strong> (${b.cakesCount} bolo${b.cakesCount > 1 ? 's' : ''} avaliado${b.cakesCount > 1 ? 's' : ''})`
+                              : `🏪 Catálogo de Feira • Pronta p/ receber bolo`
+                          }
                         </small>
                       </div>
                     </div>
@@ -2709,9 +3145,19 @@ function renderAdminCommunityTab(state) {
 
 function collectCakeFormPayload() {
   const photoUrl = document.getElementById('c-photo-url')?.value.trim() || '';
+  const bakeryId = document.getElementById('c-bakery')?.value || '';
   return {
     id: document.getElementById('c-id')?.value || null,
-    bakeryId: document.getElementById('c-bakery')?.value || '',
+    bakeryId,
+    newBakery:
+      bakeryId === '__new__'
+        ? {
+            name: document.getElementById('c-new-bak-name')?.value.trim() || '',
+            neighborhood: document.getElementById('c-new-bak-neigh')?.value.trim() || '',
+            priceRange: document.getElementById('c-new-bak-price')?.value || '$$',
+            address: document.getElementById('c-new-bak-addr')?.value.trim() || ''
+          }
+        : null,
     name: document.getElementById('c-name')?.value || '',
     category: document.getElementById('c-category')?.value || 'Fatia de Vitrine',
     flavorType: document.getElementById('c-flavor')?.value || '',
@@ -2746,6 +3192,116 @@ function bindAdminEvents() {
   document.getElementById('go-to-bakeries-tab')?.addEventListener('click', () => {
     uiState.adminTab = 'bakeries';
     renderAdminView();
+  });
+
+  const syncInlineNewBakeryVisibility = () => {
+    const bakerySelect = document.getElementById('c-bakery');
+    const newBox = document.getElementById('c-new-bakery-box');
+    const nameInp = document.getElementById('c-new-bak-name');
+    const neighInp = document.getElementById('c-new-bak-neigh');
+    if (!bakerySelect || !newBox) return;
+    const isNew = bakerySelect.value === '__new__';
+    newBox.style.display = isNew ? 'grid' : 'none';
+    if (nameInp) nameInp.required = isNew;
+    if (neighInp) neighInp.required = isNew;
+  };
+
+  syncInlineNewBakeryVisibility();
+
+  document.getElementById('c-bakery')?.addEventListener('change', () => {
+    syncInlineNewBakeryVisibility();
+    if (!uiState.editingCakeId) {
+      saveCakeDraft(collectCakeFormPayload());
+    }
+  });
+
+  document.getElementById('c-quick-new-bakery-btn')?.addEventListener('click', () => {
+    const bakerySelect = document.getElementById('c-bakery');
+    if (!bakerySelect) return;
+    bakerySelect.value = '__new__';
+    syncInlineNewBakeryVisibility();
+    document.getElementById('c-new-bak-name')?.focus();
+  });
+
+  document.getElementById('c-bakery-filter')?.addEventListener('input', (e) => {
+    const q = (e.target.value || '').trim().toLowerCase();
+    const bakerySelect = document.getElementById('c-bakery');
+    if (!bakerySelect) return;
+    let firstMatchValue = null;
+    bakerySelect.querySelectorAll('option').forEach((opt) => {
+      if (opt.value === '__new__') {
+        opt.hidden = false;
+        return;
+      }
+      const matches = !q || opt.textContent.toLowerCase().includes(q);
+      opt.hidden = !matches;
+      if (matches && firstMatchValue === null) {
+        firstMatchValue = opt.value;
+      }
+    });
+    if (q) {
+      bakerySelect.value = firstMatchValue || '__new__';
+      syncInlineNewBakeryVisibility();
+      if (firstMatchValue === null) {
+        const nameInp = document.getElementById('c-new-bak-name');
+        if (nameInp && !nameInp.value) {
+          nameInp.value = e.target.value.trim();
+        }
+      }
+    }
+  });
+
+  document.getElementById('adm-bakery-search')?.addEventListener('input', (e) => {
+    const q = (e.target.value || '').trim().toLowerCase();
+    mainEl.querySelectorAll('.js-adm-bakery-card').forEach((card) => {
+      const hay = card.getAttribute('data-search') || '';
+      card.style.display = !q || hay.includes(q) ? 'flex' : 'none';
+    });
+  });
+
+  document.getElementById('b-neighborhood')?.addEventListener('change', (e) => {
+    const neigh = e.target.value.trim();
+    const name = document.getElementById('b-name')?.value.trim() || neigh;
+    const latInp = document.getElementById('b-lat');
+    const lngInp = document.getElementById('b-lng');
+    if (!neigh || !latInp || !lngInp) return;
+    const curLat = Number(latInp.value);
+    const curLng = Number(lngInp.value);
+    if (!uiState.editingBakeryId || (Math.abs(curLat - -12.2545) < 0.0005 && Math.abs(curLng - -38.955) < 0.0005)) {
+      const coords = resolveFsaCoordinates(neigh, name);
+      latInp.value = coords.lat;
+      lngInp.value = coords.lng;
+    }
+  });
+
+  document.getElementById('b-geocode-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const name = document.getElementById('b-name')?.value.trim() || '';
+    const neigh = document.getElementById('b-neighborhood')?.value.trim() || '';
+    const addr = document.getElementById('b-address')?.value.trim() || '';
+    const latInp = document.getElementById('b-lat');
+    const lngInp = document.getElementById('b-lng');
+    if (!neigh && !addr) {
+      showToast('Preencha o Bairro ou Endereço antes de buscar o GPS.', true);
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = '⏳ Localizando em Feira...';
+    try {
+      const coords = await geocodeFsaLocation(name, addr, neigh);
+      if (latInp) latInp.value = coords.lat;
+      if (lngInp) lngInp.value = coords.lng;
+      showToast(
+        coords.source === 'nominatim'
+          ? '📍 Coordenadas GPS exatas encontradas pelo endereço!'
+          : `📍 Coordenadas centradas no bairro ${neigh || 'Feira de Santana'}!`
+      );
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📍 Buscar GPS pelo Endereço/Bairro';
+    }
   });
 
   document.getElementById('logout-admin-btn')?.addEventListener('click', async () => {

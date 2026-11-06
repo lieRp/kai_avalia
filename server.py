@@ -1459,6 +1459,36 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
 
         conn = get_db()
         cur = conn.cursor()
+
+        if bakery_id == "__new__" and isinstance(body.get("newBakery"), dict):
+            nb = body["newBakery"]
+            nb_name = str(nb.get("name", "")).strip()
+            nb_neigh = str(nb.get("neighborhood", "")).strip() or "Centro"
+            if not nb_name:
+                conn.close()
+                return self.send_json({"ok": False, "error": "Informe o nome da nova confeitaria."}, 400)
+            cur.execute("SELECT id FROM bakeries WHERE lower(name) = lower(?)", (nb_name,))
+            existing_bak = cur.fetchone()
+            if existing_bak:
+                bakery_id = existing_bak["id"]
+            else:
+                bakery_id = f"bakery-{int(time.time() * 1000)}"
+                nb_slug = ensure_unique_slug(conn, "bakeries", slugify(f"{nb_name}-{nb_neigh}"))
+                nb_addr = str(nb.get("address", "")).strip() or f"{nb_neigh}, Feira de Santana - BA"
+                nb_price = str(nb.get("priceRange", "$$")).strip() or "$$"
+                cur.execute(
+                    """INSERT INTO bakeries
+                       (id, slug, name, neighborhood, address, lat, lng, instagram, whatsapp,
+                        opening_hours, price_range, cover_photo, description, is_featured_partner, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, '', '', 'Consulte horários no perfil oficial', ?, '/assets/og-sugarcube.svg', ?, 0, ?)""",
+                    (
+                        bakery_id, nb_slug, nb_name, nb_neigh, nb_addr,
+                        -12.2545, -38.9550, nb_price,
+                        f"Confeitaria em {nb_neigh}, Feira de Santana.",
+                        time.strftime("%Y-%m-%d")
+                    )
+                )
+
         cur.execute("SELECT name, neighborhood FROM bakeries WHERE id = ?", (bakery_id,))
         bakery_row = cur.fetchone()
         if not bakery_row:
@@ -1476,16 +1506,16 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
 
         photos = body.get("photos")
         if not isinstance(photos, list) or len(photos) == 0 or not str(photos[0]).strip():
-            photos = ["/assets/og-sugarcube.svg"]
+            photos = []
         else:
             photos = [str(p).strip() for p in photos if str(p).strip()]
 
         sensory = body.get("sensoryNotes") if isinstance(body.get("sensoryNotes"), dict) else {}
         sensory_clean = {
-            "crumbPoint": str(sensory.get("crumbPoint", "")).strip() or "Massa avaliada por Kai",
-            "moisture": str(sensory.get("moisture", "")).strip() or "Equilibrada",
-            "sweetness": str(sensory.get("sweetness", "")).strip() or "Equilibrado",
-            "mouthfeel": str(sensory.get("mouthfeel", "")).strip() or "Avaliado no garfo"
+            "crumbPoint": str(sensory.get("crumbPoint", "")).strip(),
+            "moisture": str(sensory.get("moisture", "")).strip(),
+            "sweetness": str(sensory.get("sweetness", "")).strip(),
+            "mouthfeel": str(sensory.get("mouthfeel", "")).strip()
         }
 
         s_flavor = clamp_half(body.get("scoreFlavor", 0))

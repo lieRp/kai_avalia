@@ -787,9 +787,107 @@ export async function changeAdminPassword(currentPassword, newPassword) {
 }
 
 /* ==========================================================================
+   COORDENADAS REAIS DOS BAIRROS DE FEIRA DE SANTANA - BA & GEOCODING
+   ========================================================================== */
+export const FSA_NEIGHBORHOOD_COORDS = {
+  'santa monica': [-12.2502, -38.9395],
+  'kalilandia': [-12.2518, -38.9612],
+  'capuchinhos': [-12.2558, -38.9482],
+  'ponto central': [-12.2508, -38.9502],
+  'centro': [-12.2552, -38.9635],
+  'sao joao': [-12.2455, -38.9695],
+  'sim': [-12.2435, -38.9205],
+  'noide': [-12.2485, -38.9262],
+  'noide cerqueira': [-12.2485, -38.9262],
+  'muchila': [-12.2412, -38.9668],
+  'fraga maia': [-12.2265, -38.9560],
+  'cidade nova': [-12.2315, -38.9612],
+  'caseb': [-12.2405, -38.9500],
+  'brasilia': [-12.2645, -38.9515],
+  'getulio vargas': [-12.2558, -38.9535],
+  'tomba': [-12.2880, -38.9625],
+  'sobradinho': [-12.2380, -38.9710],
+  'mangabeira': [-12.2195, -38.9640],
+  'parque ipe': [-12.2345, -38.9780],
+  'papagaio': [-12.2150, -38.9480],
+  'queimadinha': [-12.2620, -38.9705],
+  'santo antonio dos prazeres': [-12.2350, -38.9180],
+  'conceicao': [-12.2280, -38.9410],
+  'jardim cruzeiro': [-12.2440, -38.9615]
+};
+
+export function resolveFsaCoordinates(neighborhood = '', seedText = '') {
+  const norm = slugifyClient(neighborhood).replace(/-/g, ' ');
+  let base = [-12.2535, -38.9545];
+  for (const [k, coords] of Object.entries(FSA_NEIGHBORHOOD_COORDS)) {
+    if (norm.includes(k) || k.includes(norm)) {
+      base = coords;
+      break;
+    }
+  }
+  const hashSource = `${neighborhood}|${seedText}`;
+  let h = 0;
+  for (let i = 0; i < hashSource.length; i++) {
+    h = (h * 31 + hashSource.charCodeAt(i)) % 10000;
+  }
+  const latOffset = ((h % 100) - 50) * 0.00007;
+  const lngOffset = ((Math.floor(h / 100) % 100) - 50) * 0.00007;
+  return {
+    lat: Number((base[0] + latOffset).toFixed(5)),
+    lng: Number((base[1] + lngOffset).toFixed(5))
+  };
+}
+
+export async function geocodeFsaLocation(name = '', address = '', neighborhood = '') {
+  const queries = [
+    address && `${address}, ${neighborhood}, Feira de Santana, Bahia, Brasil`,
+    name && neighborhood && `${name}, ${neighborhood}, Feira de Santana, Bahia, Brasil`,
+    neighborhood && `${neighborhood}, Feira de Santana, Bahia, Brasil`
+  ].filter(Boolean);
+
+  for (const q of queries) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
+        q
+      )}`;
+      const res = await fetch(url, {
+        headers: { 'Accept-Language': 'pt-BR' }
+      });
+      if (res.ok) {
+        const items = await res.json();
+        if (Array.isArray(items) && items.length > 0) {
+          const lat = Number(items[0].lat);
+          const lng = Number(items[0].lon);
+          if (lat < -12.1 && lat > -12.4 && lng < -38.8 && lng > -39.1) {
+            return { lat: Number(lat.toFixed(5)), lng: Number(lng.toFixed(5)), source: 'osm' };
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  return { ...resolveFsaCoordinates(neighborhood, `${name}-${address}`), source: 'neighborhood' };
+}
+
+/* ==========================================================================
    OPERAÇÕES ADMIN PROTEGIDAS (CONFEITARIAS, BOLOS, CONFIGURAÇÕES)
    ========================================================================== */
 export async function saveBakery(bakeryData) {
+  let latVal = Number(bakeryData.lat);
+  let lngVal = Number(bakeryData.lng);
+  const isDefaultCoords =
+    !latVal ||
+    !lngVal ||
+    (Math.abs(latVal - -12.2545) < 0.0002 && Math.abs(lngVal - -38.955) < 0.0002);
+  if (isDefaultCoords) {
+    const resolved = resolveFsaCoordinates(
+      bakeryData.neighborhood,
+      `${bakeryData.name}-${bakeryData.address}`
+    );
+    latVal = resolved.lat;
+    lngVal = resolved.lng;
+  }
+
   if (staticPagesMode || adminSession.mode === 'github') {
     await syncLatestStateFromGitHub();
     const name = String(bakeryData.name || '').trim();
@@ -812,9 +910,9 @@ export async function saveBakery(bakeryData) {
       slug,
       name,
       neighborhood,
-      address: String(bakeryData.address || '').trim(),
-      lat: Number(bakeryData.lat || -12.2545),
-      lng: Number(bakeryData.lng || -38.955),
+      address: String(bakeryData.address || `Bairro ${neighborhood}, Feira de Santana - BA`).trim(),
+      lat: latVal,
+      lng: lngVal,
       instagram: String(bakeryData.instagram || '').trim(),
       whatsapp: String(bakeryData.whatsapp || '').trim(),
       openingHours: String(bakeryData.openingHours || '').trim(),
@@ -842,7 +940,7 @@ export async function saveBakery(bakeryData) {
 
   const res = await apiRequest(url, {
     method,
-    body: JSON.stringify(bakeryData)
+    body: JSON.stringify({ ...bakeryData, lat: latVal, lng: lngVal })
   });
   await refreshPublicData();
   return res;
@@ -868,7 +966,54 @@ export async function saveCake(cakeData) {
   if (staticPagesMode || adminSession.mode === 'github') {
     await syncLatestStateFromGitHub();
     const name = String(cakeData.name || '').trim();
-    const bakeryId = String(cakeData.bakeryId || '').trim();
+    let bakeryId = String(cakeData.bakeryId || '').trim();
+
+    if (bakeryId === '__new__' && cakeData.newBakery) {
+      const nbName = String(cakeData.newBakery.name || '').trim();
+      const nbNeigh = String(cakeData.newBakery.neighborhood || '').trim();
+      if (!nbName || !nbNeigh) {
+        throw new Error('Informe o nome e o bairro da nova confeitaria.');
+      }
+      const existingBak = (appState.bakeries || []).find(
+        (b) =>
+          b.name.toLowerCase() === nbName.toLowerCase() &&
+          b.neighborhood.toLowerCase() === nbNeigh.toLowerCase()
+      );
+      if (existingBak) {
+        bakeryId = existingBak.id;
+      } else {
+        const coords = resolveFsaCoordinates(nbNeigh, nbName);
+        const newBakId = `bak-${Date.now()}`;
+        const baseBakSlug = slugifyClient(`${nbName}-${nbNeigh}`);
+        let bakSlug = baseBakSlug;
+        let bc = 2;
+        while ((appState.bakeries || []).some((b) => b.slug === bakSlug)) {
+          bakSlug = `${baseBakSlug}-${bc++}`;
+        }
+        const newBakRecord = {
+          id: newBakId,
+          slug: bakSlug,
+          name: nbName,
+          neighborhood: nbNeigh,
+          address:
+            String(cakeData.newBakery.address || '').trim() ||
+            `Bairro ${nbNeigh}, Feira de Santana - BA`,
+          lat: coords.lat,
+          lng: coords.lng,
+          instagram: '',
+          whatsapp: '',
+          openingHours: '',
+          priceRange: String(cakeData.newBakery.priceRange || '$$'),
+          coverPhoto: '',
+          description: `Confeitaria avaliada por Kai Tavares no bairro ${nbNeigh}.`,
+          isFeaturedPartner: false,
+          createdAt: new Date().toISOString().slice(0, 10)
+        };
+        appState.bakeries = [...(appState.bakeries || []), newBakRecord];
+        bakeryId = newBakId;
+      }
+    }
+
     if (!name || !bakeryId) throw new Error('Informe o nome do bolo e a confeitaria.');
 
     const bakery = (appState.bakeries || []).find((b) => b.id === bakeryId);
@@ -915,6 +1060,34 @@ export async function saveCake(cakeData) {
     return { ok: true, id, slug };
   }
 
+  let targetBakeryId = cakeData.bakeryId;
+  if (targetBakeryId === '__new__' && cakeData.newBakery) {
+    const nbName = String(cakeData.newBakery.name || '').trim();
+    const nbNeigh = String(cakeData.newBakery.neighborhood || '').trim();
+    if (!nbName || !nbNeigh) {
+      throw new Error('Informe o nome e o bairro da nova confeitaria.');
+    }
+    const existingBak = (appState?.bakeries || []).find(
+      (b) =>
+        b.name.toLowerCase() === nbName.toLowerCase() &&
+        b.neighborhood.toLowerCase() === nbNeigh.toLowerCase()
+    );
+    if (existingBak) {
+      targetBakeryId = existingBak.id;
+    } else {
+      const createdBak = await saveBakery({
+        name: nbName,
+        neighborhood: nbNeigh,
+        address:
+          String(cakeData.newBakery.address || '').trim() ||
+          `Bairro ${nbNeigh}, Feira de Santana - BA`,
+        priceRange: String(cakeData.newBakery.priceRange || '$$'),
+        description: `Confeitaria avaliada por Kai Tavares no bairro ${nbNeigh}.`
+      });
+      targetBakeryId = createdBak.id;
+    }
+  }
+
   const isEdit = Boolean(cakeData.id);
   const url = isEdit
     ? `/api/admin/cakes/${encodeURIComponent(cakeData.id)}`
@@ -923,7 +1096,7 @@ export async function saveCake(cakeData) {
 
   const res = await apiRequest(url, {
     method,
-    body: JSON.stringify(cakeData)
+    body: JSON.stringify({ ...cakeData, bakeryId: targetBakeryId })
   });
   clearCakeDraft();
   await refreshPublicData();
