@@ -2,33 +2,51 @@
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#FFF8F5"/>
-      <stop offset="55%" stop-color="#FFEBF3"/>
-      <stop offset="100%" stop-color="#E6F6FD"/>
+      <stop offset="50%" stop-color="#FFEAF3"/>
+      <stop offset="100%" stop-color="#E8F6FD"/>
     </linearGradient>
-    <linearGradient id="pill" x1="0" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#C82867"/>
+    <linearGradient id="pill" x1="420" y1="0" x2="780" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#C42865"/>
       <stop offset="100%" stop-color="#E84A8A"/>
     </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="42%" r="42%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
   </defs>
+
+  <!-- Fundo Suave Sugarcube Corner -->
   <rect width="1200" height="630" fill="url(#bg)"/>
-  <rect x="36" y="36" width="1128" height="558" rx="36" stroke="#F4BBD3" stroke-width="4" fill="none"/>
+  <circle cx="600" cy="265" r="360" fill="url(#glow)"/>
+  <rect x="44" y="44" width="1112" height="542" rx="34" stroke="#F4BBD3" stroke-width="3.5" stroke-dasharray="10 8" fill="none" opacity="0.85"/>
 
-  <!-- Balões Cutie Mark Decorativos -->
-  <circle cx="1020" cy="150" r="42" fill="#2F96C9" opacity="0.22"/>
-  <circle cx="1085" cy="120" r="42" fill="#F4B942" opacity="0.26"/>
-  <circle cx="1065" cy="195" r="38" fill="#DE3B7A" opacity="0.22"/>
-
-  <!-- Ícone Casinha Cupcake Sugarcube Corner -->
-  <g transform="translate(90, 120) scale(2.1)">
-    <path d="M14 34 L50 34 L45 56 C45 58 43 59 41 59 L23 59 C21 59 19 58 19 56 Z" fill="#F4B942" stroke="#2D1622" stroke-width="2"/>
-    <path d="M8 33 C8 22, 18 16, 32 16 C46 16, 56 22, 56 33 C56 37, 51 39, 47 36 C44 39, 39 39, 36 36 C33 39, 31 39, 28 36 C25 39, 20 39, 17 36 C13 39, 8 37, 8 33 Z" fill="#DE3B7A" stroke="#2D1622" stroke-width="2"/>
-    <circle cx="32" cy="12" r="5.5" fill="#FFE066" stroke="#2D1622" stroke-width="2"/>
+  <!-- Balões Simétricos nas Laterais -->
+  <g opacity="0.22">
+    <circle cx="170" cy="175" r="36" fill="#2F96C9"/>
+    <circle cx="220" cy="145" r="36" fill="#F4B942"/>
+    <circle cx="205" cy="212" r="32" fill="#DE3B7A"/>
+    <circle cx="1030" cy="175" r="36" fill="#2F96C9"/>
+    <circle cx="980" cy="145" r="36" fill="#F4B942"/>
+    <circle cx="995" cy="212" r="32" fill="#DE3B7A"/>
   </g>
 
-  <rect x="96" y="290" width="380" height="48" rx="24" fill="url(#pill)"/>
-  <text x="124" y="322" fill="#FFFFFF" font-family="sans-serif" font-size="22" font-weight="bold">FEIRA DE SANTANA • BAHIA</text>
+  <!-- Emblema Centralizado do Cupcake Sugarcube Corner -->
+  <g transform="translate(536, 78) scale(2.0)">
+    <circle cx="32" cy="34" r="34" fill="#FFFFFF" stroke="#F5B5D0" stroke-width="2"/>
+    <path d="M16 36 L48 36 L44 55 C44 57 42 58 40 58 L24 58 C22 58 20 57 20 55 Z" fill="#F4B942" stroke="#2D1622" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="25" y1="38" x2="27" y2="56" stroke="#2D1622" stroke-width="1.5" opacity="0.45"/>
+    <line x1="32" y1="38" x2="32" y2="56" stroke="#2D1622" stroke-width="1.5" opacity="0.45"/>
+    <line x1="39" y1="38" x2="37" y2="56" stroke="#2D1622" stroke-width="1.5" opacity="0.45"/>
+    <path d="M10 35 C10 24, 19 18, 32 18 C45 18, 54 24, 54 35 C54 39, 49 41, 45 38 C42 41, 38 41, 35 38 C32 41, 30 41, 27 38 C24 41, 20 41, 17 38 C13 41, 10 39, 10 35 Z" fill="#DE3B7A" stroke="#2D1622" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="32" cy="14" r="5" fill="#FFE066" stroke="#2D1622" stroke-width="2"/>
+  </g>
 
-  <text x="96" y="415" fill="#2D1622" font-family="Georgia, serif" font-size="76" font-weight="bold">Sugarcube Corner</text>
-  <text x="96" y="472" fill="#5E3B4D" font-family="sans-serif" font-size="34" font-weight="bold">O Ranking Autoral de Bolos e Confeitarias • por Kai Tavares</text>
-  <text x="96" y="528" fill="#8C6578" font-family="sans-serif" font-size="26">Avaliações sinceras de Textura • Massa • Sabor • Recheio</text>
+  <!-- Pílula Centralizada -->
+  <rect x="430" y="232" width="340" height="42" rx="21" fill="url(#pill)"/>
+  <text x="600" y="259" text-anchor="middle" fill="#FFFFFF" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="18.5" font-weight="bold" letter-spacing="1.2">FEIRA DE SANTANA • BAHIA</text>
+
+  <!-- Título e Subtítulos 100% Centralizados -->
+  <text x="600" y="338" text-anchor="middle" fill="#2A1420" font-family="Georgia, 'Times New Roman', serif" font-size="64" font-weight="bold">Sugarcube Corner</text>
+  <text x="600" y="384" text-anchor="middle" fill="#523243" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="26" font-weight="bold">Guia Autoral de Bolos e Confeitarias • por Kai Tavares</text>
+  <text x="600" y="424" text-anchor="middle" fill="#785265" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="21" font-weight="600">Avaliação Sensorial de Textura • Massa • Sabor • Recheio</text>
 </svg>

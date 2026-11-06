@@ -47,6 +47,23 @@
   },
   "bakeries": [
     {
+      "id": "bak-1793755749135",
+      "slug": "pricila-diniz-noide",
+      "name": "Pricila diniz",
+      "neighborhood": "Noide",
+      "address": "Hiperideal",
+      "lat": -12.2545,
+      "lng": -38.955,
+      "instagram": "",
+      "whatsapp": "",
+      "openingHours": "",
+      "priceRange": "$$$",
+      "coverPhoto": "/uploads/kai-1793755718332-img-0743.jpg",
+      "description": "Fica no mercado",
+      "isFeaturedPartner": false,
+      "createdAt": "2026-11-04"
+    },
+    {
       "id": "bak-1793109284477",
       "slug": "coisas-de-mainha-centro",
       "name": "Coisas de Mainha",
@@ -79,43 +96,39 @@
       "description": "Em frente condomínio de wally",
       "isFeaturedPartner": false,
       "createdAt": "2026-11-01"
-    },
-    {
-      "id": "bak-1793559426926",
-      "slug": "nanda-confeiteira-muchila-2",
-      "name": "Nanda Confeiteira",
-      "neighborhood": "Muchila",
-      "address": "Rua doutor macario cerqueira",
-      "lat": -12.2545,
-      "lng": -38.955,
-      "instagram": "",
-      "whatsapp": "",
-      "openingHours": "",
-      "priceRange": "$",
-      "coverPhoto": "/uploads/kai-1793559374423-img-0697.jpg",
-      "description": "Em frente condomínio de wally",
-      "isFeaturedPartner": false,
-      "createdAt": "2026-11-01"
-    },
-    {
-      "id": "bak-1793755749135",
-      "slug": "pricila-diniz-noide",
-      "name": "Pricila diniz",
-      "neighborhood": "Noide",
-      "address": "Hiperideal",
-      "lat": -12.2545,
-      "lng": -38.955,
-      "instagram": "",
-      "whatsapp": "",
-      "openingHours": "",
-      "priceRange": "$$$",
-      "coverPhoto": "/uploads/kai-1793755718332-img-0743.jpg",
-      "description": "Fica no mercado",
-      "isFeaturedPartner": false,
-      "createdAt": "2026-11-04"
     }
   ],
   "cakes": [
+    {
+      "id": "cake-1793755993269",
+      "bakeryId": "bak-1793755749135",
+      "slug": "fatia-alegria-noide",
+      "name": "Fatia alegria",
+      "category": "Fatia de Vitrine",
+      "flavorType": "",
+      "photos": [],
+      "scoreFlavor": 8.0,
+      "scoreDough": 4.0,
+      "scoreTexture": 5.5,
+      "scoreFilling": 10.0,
+      "kaiVerdict": "A massa esfarela na boca, pelo preço podia ser mais molhadinha, o recheio ameniza, o brigadeiro no ponto certo e com gosto certo sem ser amargo nem doce demais,",
+      "sensoryNotes": {
+        "crumbPoint": "",
+        "mouthfeel": "",
+        "moisture": "",
+        "sweetness": ""
+      },
+      "approxPrice": 22.0,
+      "visitedAt": "2026-11-04",
+      "reevaluatedAt": null,
+      "reevaluationNote": "",
+      "editionYear": 2026,
+      "reactions": {
+        "waterInMouth": 0,
+        "agreeWithKai": 0,
+        "wantToTry": 0
+      }
+    },
     {
       "id": "cake-1793559565851",
       "bakeryId": "bak-1793559423575",
@@ -123,11 +136,13 @@
       "name": "Bolo de pote 50%",
       "category": "Fatia de Vitrine",
       "flavorType": "",
-      "photos": [],
-      "scoreFlavor": 3,
-      "scoreDough": 6,
-      "scoreTexture": 6,
-      "scoreFilling": 1,
+      "photos": [
+        "/uploads/kai-1793559793661-img-0698.jpg"
+      ],
+      "scoreFlavor": 3.0,
+      "scoreDough": 6.0,
+      "scoreTexture": 6.0,
+      "scoreFilling": 1.0,
       "kaiVerdict": "A textura da recheio muito boa e molhadinha mas o amargo não é bom",
       "sensoryNotes": {
         "crumbPoint": "",
@@ -135,7 +150,7 @@
         "moisture": "",
         "sweetness": ""
       },
-      "approxPrice": 22,
+      "approxPrice": 22.0,
       "visitedAt": "2026-11-01",
       "reevaluatedAt": null,
       "reevaluationNote": "",
@@ -157,7 +172,7 @@
       "scoreFlavor": 4.5,
       "scoreDough": 4.5,
       "scoreTexture": 4.5,
-      "scoreFilling": 5,
+      "scoreFilling": 5.0,
       "kaiVerdict": "Massa não é tão macia quanto o bolo de pote \nRecheio com gosto de chocolate mas meio artificial",
       "sensoryNotes": {
         "crumbPoint": "",
@@ -165,38 +180,8 @@
         "moisture": "",
         "sweetness": ""
       },
-      "approxPrice": 22,
+      "approxPrice": 22.0,
       "visitedAt": "2026-11-01",
-      "reevaluatedAt": null,
-      "reevaluationNote": "",
-      "editionYear": 2026,
-      "reactions": {
-        "waterInMouth": 0,
-        "agreeWithKai": 0,
-        "wantToTry": 0
-      }
-    },
-    {
-      "id": "cake-1793755993269",
-      "bakeryId": "bak-1793755749135",
-      "slug": "fatia-alegria-noide",
-      "name": "Fatia alegria",
-      "category": "Fatia de Vitrine",
-      "flavorType": "",
-      "photos": [],
-      "scoreFlavor": 8,
-      "scoreDough": 4,
-      "scoreTexture": 5.5,
-      "scoreFilling": 10,
-      "kaiVerdict": "A massa esfarela na boca, pelo preço podia ser mais molhadinha, o recheio ameniza, o brigadeiro no ponto certo e com gosto certo sem ser amargo nem doce demais,",
-      "sensoryNotes": {
-        "crumbPoint": "",
-        "mouthfeel": "",
-        "moisture": "",
-        "sweetness": ""
-      },
-      "approxPrice": 22,
-      "visitedAt": "2026-11-04",
       "reevaluatedAt": null,
       "reevaluationNote": "",
       "editionYear": 2026,
@@ -207,6 +192,5 @@
       }
     }
   ],
-  "upcomingBakeries": [],
-  "publicSuggestions": []
+  "upcomingBakeries": []
 }

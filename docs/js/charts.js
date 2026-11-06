@@ -57,7 +57,7 @@ export function renderRadarChartSVG(scores, size = 270) {
 
   return `
     <div class="radar-svg-container" role="img" aria-label="Gráfico radar das notas: Textura ${sTexture.toFixed(1)}, Massa ${sDough.toFixed(1)}, Sabor ${sFlavor.toFixed(1)}, Recheio ${sFilling.toFixed(1)}">
-      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <svg width="100%" height="${size}" viewBox="-36 -12 ${size + 72} ${size + 24}" style="max-width:${size + 44}px;height:auto;display:block;margin:0 auto;overflow:visible;">
         <circle cx="${cx}" cy="${cy}" r="${maxRadius}" fill="#FFF8F5" />
         ${gridPolygons}
         ${axisLines}

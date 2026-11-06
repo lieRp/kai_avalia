@@ -181,7 +181,7 @@ def backup_database():
         print(f"[Backup Warning] Falha ao criar backup: {e}", flush=True)
 
 
-def init_db(reset_to_clean=False, new_admin_password=None):
+def init_db(reset_to_clean=False, new_admin_password=None, force_sync_seed=False):
     conn = get_db()
     cur = conn.cursor()
 
@@ -304,12 +304,24 @@ def init_db(reset_to_clean=False, new_admin_password=None):
             ("site_settings", json.dumps(default_settings, ensure_ascii=False))
         )
 
-    # Semear confeitarias, bolos e em-breve de data/seed.json caso o banco esteja vazio (ex: CI / GitHub Actions)
+    # Semear confeitarias, bolos e em-breve de data/seed.json caso o banco esteja vazio (ex: CI / GitHub Actions) ou force_sync_seed
     cur.execute("SELECT COUNT(*) as cnt FROM bakeries")
     bak_cnt = cur.fetchone()["cnt"]
-    if bak_cnt == 0 and not reset_to_clean and SEED_PATH.exists():
+    if (bak_cnt == 0 or force_sync_seed) and not reset_to_clean and SEED_PATH.exists():
         try:
             seed_obj = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+            if force_sync_seed:
+                cur.execute("DELETE FROM cakes")
+                cur.execute("DELETE FROM bakeries")
+                cur.execute("DELETE FROM upcoming_bakeries")
+                seed_settings = seed_obj.get("settings")
+                if seed_settings:
+                    seed_settings.pop("adminPassHash", None)
+                    seed_settings.pop("adminUser", None)
+                    cur.execute(
+                        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                        ("site_settings", json.dumps(seed_settings, ensure_ascii=False))
+                    )
             today = time.strftime("%Y-%m-%d")
             for b in seed_obj.get("bakeries", []):
                 cur.execute(
@@ -322,7 +334,8 @@ def init_db(reset_to_clean=False, new_admin_password=None):
                         float(b.get("lat", -12.2545)), float(b.get("lng", -38.9550)),
                         b.get("instagram", ""), b.get("whatsapp", ""), b.get("openingHours", ""),
                         b.get("priceRange", "$$"), b.get("coverPhoto", "/assets/og-sugarcube.svg"),
-                        b.get("description", ""), 1 if b.get("isFeaturedPartner") else 0, today
+                        b.get("description", ""), 1 if b.get("isFeaturedPartner") else 0,
+                        b.get("createdAt") or today
                     )
                 )
             for c in seed_obj.get("cakes", []):
@@ -336,8 +349,8 @@ def init_db(reset_to_clean=False, new_admin_password=None):
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         c["id"], c["bakeryId"], c["slug"], c["name"],
-                        c.get("category", "Fatia de Vitrine"), c.get("flavorType", "Especial"),
-                        json.dumps(c.get("photos", ["/assets/og-sugarcube.svg"]), ensure_ascii=False),
+                        c.get("category", "Fatia de Vitrine"), c.get("flavorType", ""),
+                        json.dumps(c.get("photos", []), ensure_ascii=False),
                         float(c.get("scoreFlavor", 0)), float(c.get("scoreDough", 0)),
                         float(c.get("scoreTexture", 0)), float(c.get("scoreFilling", 0)),
                         c.get("kaiVerdict", ""), json.dumps(c.get("sensoryNotes", {}), ensure_ascii=False),
@@ -921,6 +934,9 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
         # 5. Arquivos enviados (Uploads)
         if path.startswith("/uploads/"):
             rel = path[len("/uploads/"):]
+            pub_uploads = PUBLIC_DIR / "uploads"
+            if (pub_uploads / rel).exists():
+                return self.serve_static_file(pub_uploads, rel)
             return self.serve_static_file(UPLOADS_DIR, rel)
 
         # 6. Arquivos estáticos em public/ (css/, js/, assets/, data/, favicon)
@@ -1175,6 +1191,9 @@ class SugarcubeSecureHandler(BaseHTTPRequestHandler):
             safe_stem = slugify(Path(filename_hint).stem)[:36]
             out_name = f"{safe_stem}-{int(time.time() * 1000)}-{secrets.token_hex(3)}{ext}"
             (UPLOADS_DIR / out_name).write_bytes(raw_bytes)
+            pub_uploads = PUBLIC_DIR / "uploads"
+            pub_uploads.mkdir(parents=True, exist_ok=True)
+            (pub_uploads / out_name).write_bytes(raw_bytes)
             return self.send_json({"ok": True, "url": f"/uploads/{out_name}"})
 
         if path == "/api/admin/bakeries":
@@ -1527,7 +1546,7 @@ def build_github_pages(out_dir_str: str = "docs", _skip_init: bool = False):
     para publicação direta no GitHub Pages (via GitHub Actions ou pasta docs/).
     """
     if not _skip_init:
-        init_db(reset_to_clean=False)
+        init_db(reset_to_clean=False, force_sync_seed=True)
         sync_static_snapshot(auto_push=False)
 
     out_dir = (BASE_DIR / out_dir_str).resolve()

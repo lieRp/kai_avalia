@@ -43,7 +43,10 @@ import {
   saveCakeDraft,
   loadCakeDraft,
   clearCakeDraft,
-  optimizeAndUploadImage
+  optimizeAndUploadImage,
+  rotateAndUploadImage,
+  resolveDisplayImageUrl,
+  getRawGitHubUploadUrl
 } from './store.js';
 
 import { renderRadarChartSVG, renderCriteriaBarsHTML } from './charts.js';
@@ -95,6 +98,39 @@ function escapeHTML(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function renderImageUrl(pathStr, fallback = '/assets/og-sugarcube.svg') {
+  return escapeHTML(resolveDisplayImageUrl(pathStr, fallback));
+}
+
+function setupGlobalImageFallback() {
+  document.addEventListener(
+    'error',
+    (e) => {
+      const img = e.target;
+      if (!img || img.tagName !== 'IMG') return;
+      const currentSrc = img.getAttribute('src') || '';
+      if (!currentSrc) return;
+
+      // Se for uma foto recém-enviada em /uploads/ ainda propagando no GitHub Pages, busca direto do repositório raw
+      if (currentSrc.includes('/uploads/') && img.dataset.fallbackStage !== 'raw') {
+        const rawUrl = getRawGitHubUploadUrl(currentSrc);
+        if (rawUrl && rawUrl !== currentSrc) {
+          img.dataset.fallbackStage = 'raw';
+          img.src = `${rawUrl}?t=${Date.now()}`;
+          return;
+        }
+      }
+
+      // Fallback final para ilustração padrão da Sugarcube Corner
+      if (img.dataset.fallbackStage !== 'default' && !currentSrc.includes('og-sugarcube.svg')) {
+        img.dataset.fallbackStage = 'default';
+        img.src = resolveSitePath('/assets/og-sugarcube.svg');
+      }
+    },
+    true
+  );
 }
 
 function formatBRL(val) {
@@ -296,7 +332,7 @@ function renderCakeCardHTML(cake, rankIndex = null, highlightCrit = 'finalScore'
             : ''
         }
         <a href="/bolo/${encodeURIComponent(cake.slug)}">
-          <img src="${escapeHTML(cake.photos?.[0] || '/assets/og-sugarcube.svg')}" alt="Foto de ${escapeHTML(cake.name)} na confeitaria ${escapeHTML(cake.bakery?.name)}" loading="lazy" />
+          <img src="${renderImageUrl(cake.photos?.[0])}" alt="Foto de ${escapeHTML(cake.name)} na confeitaria ${escapeHTML(cake.bakery?.name)}" loading="lazy" />
         </a>
         <div class="score-badge-floating">
           <span class="score-num">${mainDisplayScore}</span>
@@ -322,7 +358,7 @@ function renderCakeCardHTML(cake, rankIndex = null, highlightCrit = 'finalScore'
           <span aria-hidden="true">🧁</span> ${escapeHTML(cake.bakery?.name)} (${escapeHTML(cake.bakery?.priceRange || '$$')})
         </a>
 
-        <p class="card-quote">"${escapeHTML(cake.kaiVerdict)}"</p>
+        <p class="card-quote"><span class="card-quote-text">"${escapeHTML(cake.kaiVerdict)}"</span></p>
 
         <div class="mini-criteria-grid">
           <div class="mini-crit-box ${highlightCrit === 'scoreTexture' ? 'highlight-crit' : ''}">
@@ -433,7 +469,7 @@ function renderHomeView() {
               ? `
           <div class="hero-visual">
             <a href="/bolo/${encodeURIComponent(championCake.slug)}" class="hero-photo-frame">
-              <img src="${escapeHTML(championCake.photos?.[0] || '/assets/og-sugarcube.svg')}" alt="Foto destaque: ${escapeHTML(championCake.name)}" />
+              <img src="${renderImageUrl(championCake.photos?.[0])}" alt="Foto destaque: ${escapeHTML(championCake.name)}" />
             </a>
             <div class="hero-floating-card">
               <div>
@@ -529,7 +565,7 @@ function renderHomeView() {
               <div class="card-media">
                 <span class="rank-medal ${idx === 0 ? 'medal-1' : idx === 1 ? 'medal-2' : 'medal-3'}">#${idx + 1}</span>
                 <a href="/confeitaria/${encodeURIComponent(b.slug)}">
-                  <img src="${escapeHTML(b.coverPhoto || '/assets/og-sugarcube.svg')}" alt="Foto da confeitaria ${escapeHTML(b.name)}" loading="lazy" />
+                  <img src="${renderImageUrl(b.coverPhoto)}" alt="Foto da confeitaria ${escapeHTML(b.name)}" loading="lazy" />
                 </a>
                 <div class="score-badge-floating">
                   <span class="score-num">${b.overallScore.toFixed(1)}</span>
@@ -777,7 +813,7 @@ function renderRankingView(queryParams = {}) {
             </div>
           </div>
 
-          <div style="margin-top:1.1rem;">
+          <div style="margin-top:1.1rem;text-align:center;">
             <span class="form-label" style="display:block;margin-bottom:0.45rem;">Reordenar Ranking por Critério Individual:</span>
             <div class="criteria-pill-bar">
               <button type="button" class="criterion-sort-btn ${uiState.rankingSort === 'finalScore' ? 'active' : ''}" data-sort-crit="finalScore">
@@ -896,7 +932,7 @@ function renderRankingView(queryParams = {}) {
                     <div class="card-media">
                       <span class="rank-medal ${idx === 0 ? 'medal-1' : idx === 1 ? 'medal-2' : idx === 2 ? 'medal-3' : ''}">#${idx + 1}</span>
                       <a href="/confeitaria/${encodeURIComponent(b.slug)}">
-                        <img src="${escapeHTML(b.coverPhoto || '/assets/og-sugarcube.svg')}" alt="Foto da confeitaria ${escapeHTML(b.name)}" loading="lazy" />
+                        <img src="${renderImageUrl(b.coverPhoto)}" alt="Foto da confeitaria ${escapeHTML(b.name)}" loading="lazy" />
                       </a>
                       <div class="score-badge-floating">
                         <span class="score-num">${b.overallScore.toFixed(1)}</span>
@@ -1095,7 +1131,7 @@ function renderBakeryDetailView(slug) {
         <div>
           <div class="detail-card">
             <div class="review-gallery-main">
-              <img src="${escapeHTML(bakery.coverPhoto || '/assets/og-sugarcube.svg')}" alt="Foto de capa da confeitaria ${escapeHTML(bakery.name)}" />
+              <img src="${renderImageUrl(bakery.coverPhoto)}" alt="Foto de capa da confeitaria ${escapeHTML(bakery.name)}" />
             </div>
 
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.65rem;">
@@ -1155,26 +1191,26 @@ function renderBakeryDetailView(slug) {
           </div>
 
           <div style="margin-top:2rem;">
-            <h2 class="section-title" style="margin-bottom:0.35rem;">
+            <h2 class="section-title" style="margin-bottom:0.35rem;text-align:center;">
               Bolos Avaliados por Kai (${bakery.cakesCount})
             </h2>
-            <p class="section-subtitle" style="margin-bottom:1.25rem;">
+            <p class="section-subtitle" style="margin:0 auto 1.25rem;text-align:center;">
               A média simples da ${escapeHTML(bakery.name)} é <strong>${bakery.overallScore.toFixed(1)}</strong> baseada nos ${bakery.cakesCount} bolo(s) abaixo:
             </p>
 
-            <div class="podium-grid" style="grid-template-columns:repeat(auto-fit,minmax(290px,1fr));">
+            <div class="podium-grid">
               ${bakery.cakes.map((cake, idx) => renderCakeCardHTML(cake, idx, 'finalScore')).join('')}
             </div>
           </div>
 
           <div class="detail-card" style="margin-top:2rem;">
-            <h3 class="section-title" style="font-size:1.3rem;margin-bottom:1rem;">Galeria da Casa & Fatias</h3>
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.75rem;">
+            <h3 class="section-title" style="font-size:1.3rem;margin-bottom:1rem;text-align:center;">Galeria da Casa & Fatias</h3>
+            <div class="bakery-gallery-grid">
               ${allPhotos
                 .map(
                   (url, i) => `
-                <div style="border-radius:12px;overflow:hidden;aspect-ratio:4/3;border:1px solid var(--border-warm);">
-                  <img src="${escapeHTML(url)}" alt="Foto ${i + 1} da confeitaria ${escapeHTML(bakery.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" />
+                <div class="bakery-gallery-item">
+                  <img src="${renderImageUrl(url)}" alt="Foto ${i + 1} da confeitaria ${escapeHTML(bakery.name)}" loading="lazy" />
                 </div>
               `
                 )
@@ -1263,7 +1299,7 @@ function renderCakeDetailView(slug) {
         <div>
           <article class="detail-card">
             <div class="review-gallery-main">
-              <img id="main-cake-photo" src="${escapeHTML(cake.photos?.[0] || '/assets/og-sugarcube.svg')}" alt="Foto principal do bolo ${escapeHTML(cake.name)}" />
+              <img id="main-cake-photo" src="${renderImageUrl(cake.photos?.[0])}" alt="Foto principal do bolo ${escapeHTML(cake.name)}" />
             </div>
 
             ${
@@ -1272,8 +1308,8 @@ function renderCakeDetailView(slug) {
                     ${cake.photos
                       .map(
                         (url, i) => `
-                      <button type="button" class="thumb-btn ${i === 0 ? 'active' : ''}" data-photo-url="${escapeHTML(url)}" aria-label="Ver foto ${i + 1} de ${escapeHTML(cake.name)}">
-                        <img src="${escapeHTML(url)}" alt="Miniatura ${i + 1} de ${escapeHTML(cake.name)}" />
+                      <button type="button" class="thumb-btn ${i === 0 ? 'active' : ''}" data-photo-url="${renderImageUrl(url)}" aria-label="Ver foto ${i + 1} de ${escapeHTML(cake.name)}">
+                        <img src="${renderImageUrl(url)}" alt="Miniatura ${i + 1} de ${escapeHTML(cake.name)}" />
                       </button>
                     `
                       )
@@ -2197,17 +2233,62 @@ function renderAdminCakesTab(state, cakes, editingCake) {
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="c-photo-file">Fotos Reais do Bolo (Upload do Celular/PC)</label>
-            <input type="file" id="c-photo-file" accept="image/jpeg,image/png,image/webp" class="form-input" />
-            <small style="color:var(--text-muted);font-size:0.76rem;">A imagem é otimizada no navegador e validada no servidor antes de salvar.</small>
-            <input type="text" id="c-photo-url" class="form-input" placeholder="Caminho da foto enviada (/uploads/...)" value="${escapeHTML(source.photos?.[0] || '')}" style="margin-top:0.35rem;" />
+            <label class="form-label">Foto Real do Bolo (Celular ou Computador)</label>
+            <div class="admin-photo-uploader">
+              <div class="admin-photo-preview-wrap">
+                <img
+                  id="c-photo-preview-img"
+                  src="${renderImageUrl(source.photos?.[0])}"
+                  alt="Prévia da foto do bolo"
+                />
+                <span class="admin-photo-status" id="c-photo-status">
+                  ${source.photos?.[0] ? '✓ Foto pronta para publicação' : 'Sem foto própria (usará ilustração padrão)'}
+                </span>
+              </div>
+              <div class="admin-photo-controls">
+                <div class="admin-photo-btn-row">
+                  <label for="c-photo-file" class="btn btn-primary btn-sm" style="cursor:pointer;">
+                    📷 Escolher / Trocar Foto
+                  </label>
+                  <input type="file" id="c-photo-file" accept="image/*" hidden />
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    id="c-photo-rotate-btn"
+                    title="Girar foto em 90 graus para a direita"
+                    ${source.photos?.[0] ? '' : 'disabled'}
+                  >
+                    ↻ Girar 90°
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-caramel btn-sm"
+                    id="c-photo-remove-btn"
+                    title="Remover foto atual"
+                    ${source.photos?.[0] ? '' : 'disabled'}
+                  >
+                    🗑️ Remover Foto
+                  </button>
+                </div>
+                <small style="color:var(--text-muted);font-size:0.76rem;display:block;">
+                  A imagem é otimizada automaticamente e exibida na hora. Se a foto sair deitada do celular, toque em <strong>Girar 90°</strong>.
+                </small>
+                <input
+                  type="text"
+                  id="c-photo-url"
+                  class="form-input"
+                  placeholder="Ou cole o link / caminho da imagem (/uploads/...)"
+                  value="${escapeHTML(source.photos?.[0] || '')}"
+                />
+              </div>
+            </div>
           </div>
 
           <div style="display:flex;gap:0.65rem;flex-wrap:wrap;">
             <button type="button" class="btn btn-caramel" id="preview-admin-story-btn">
               Pré-visualizar Card de Story (9:16)
             </button>
-            <button type="submit" class="btn btn-primary" style="flex:1;">
+            <button type="submit" class="btn btn-primary" id="c-submit-btn" style="flex:1;">
               ${editingCake ? 'Salvar Alterações da Avaliação' : 'Publicar Avaliação no Ranking'}
             </button>
           </div>
@@ -2225,9 +2306,9 @@ function renderAdminCakesTab(state, cakes, editingCake) {
               : cakes
                   .map(
                     (c) => `
-                  <div class="detail-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;">
-                    <div style="display:flex;gap:0.75rem;align-items:center;">
-                      <img src="${escapeHTML(c.photos?.[0] || '/assets/og-sugarcube.svg')}" alt="Foto de ${escapeHTML(c.name)}" style="width:60px;height:60px;border-radius:10px;object-fit:cover;flex-shrink:0;" />
+                  <div class="detail-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                    <div style="display:flex;gap:0.75rem;align-items:center;min-width:200px;flex:1;">
+                      <img src="${renderImageUrl(c.photos?.[0])}" alt="Foto de ${escapeHTML(c.name)}" style="width:60px;height:60px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border-warm);" />
                       <div>
                         <strong style="font-size:0.95rem;display:block;">${escapeHTML(c.name)}</strong>
                         <small style="color:var(--text-muted);">${escapeHTML(c.bakery?.name)} • Nota <strong>${c.finalScore.toFixed(1)}</strong> (Tex: ${c.scoreTexture.toFixed(1)} | Mas: ${c.scoreDough.toFixed(1)})</small>
@@ -2331,9 +2412,55 @@ function renderAdminBakeriesTab(state, bakeries, editingBakery) {
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="b-photo-file">Foto de Capa da Confeitaria</label>
-            <input type="file" id="b-photo-file" accept="image/jpeg,image/png,image/webp" class="form-input" />
-            <input type="text" id="b-photo-url" class="form-input" value="${escapeHTML(editingBakery?.coverPhoto || '')}" placeholder="Caminho da foto de capa" style="margin-top:0.35rem;" />
+            <label class="form-label">Foto de Capa da Confeitaria</label>
+            <div class="admin-photo-uploader">
+              <div class="admin-photo-preview-wrap">
+                <img
+                  id="b-photo-preview-img"
+                  src="${renderImageUrl(editingBakery?.coverPhoto)}"
+                  alt="Prévia da foto de capa da confeitaria"
+                />
+                <span class="admin-photo-status" id="b-photo-status">
+                  ${editingBakery?.coverPhoto ? '✓ Foto de capa pronta' : 'Sem foto própria (usará ilustração padrão)'}
+                </span>
+              </div>
+              <div class="admin-photo-controls">
+                <div class="admin-photo-btn-row">
+                  <label for="b-photo-file" class="btn btn-primary btn-sm" style="cursor:pointer;">
+                    📷 Escolher / Trocar Foto
+                  </label>
+                  <input type="file" id="b-photo-file" accept="image/*" hidden />
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    id="b-photo-rotate-btn"
+                    title="Girar foto em 90 graus para a direita"
+                    ${editingBakery?.coverPhoto ? '' : 'disabled'}
+                  >
+                    ↻ Girar 90°
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-caramel btn-sm"
+                    id="b-photo-remove-btn"
+                    title="Remover foto de capa"
+                    ${editingBakery?.coverPhoto ? '' : 'disabled'}
+                  >
+                    🗑️ Remover Foto
+                  </button>
+                </div>
+                <small style="color:var(--text-muted);font-size:0.76rem;display:block;">
+                  Envie uma foto da fachada, vitrine ou marca da confeitaria. Se ficar deitada, toque em <strong>Girar 90°</strong>.
+                </small>
+                <input
+                  type="text"
+                  id="b-photo-url"
+                  class="form-input"
+                  value="${escapeHTML(editingBakery?.coverPhoto || '')}"
+                  placeholder="Ou cole o link / caminho da foto de capa"
+                />
+              </div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -2346,7 +2473,7 @@ function renderAdminBakeriesTab(state, bakeries, editingBakery) {
             <span>Marcar como "Vitrine Parceira" (exibe aviso ético sem alterar notas)</span>
           </label>
 
-          <button type="submit" class="btn btn-primary btn-full">
+          <button type="submit" class="btn btn-primary btn-full" id="b-submit-btn">
             ${editingBakery ? 'Atualizar Confeitaria' : 'Salvar Nova Confeitaria'}
           </button>
         </form>
@@ -2363,13 +2490,16 @@ function renderAdminBakeriesTab(state, bakeries, editingBakery) {
               : bakeries
                   .map(
                     (b) => `
-                  <div class="detail-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;">
-                    <div>
-                      <strong style="font-size:0.98rem;">${escapeHTML(b.name)}</strong>
-                      <span class="neighborhood-tag" style="margin-left:0.4rem;">${escapeHTML(b.neighborhood)}</span>
-                      <small style="display:block;color:var(--text-muted);margin-top:0.2rem;">
-                        Média: <strong>${b.overallScore.toFixed(1)}</strong> (${b.cakesCount} bolo(s) avaliado(s))
-                      </small>
+                  <div class="detail-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                    <div style="display:flex;gap:0.75rem;align-items:center;min-width:200px;flex:1;">
+                      <img src="${renderImageUrl(b.coverPhoto)}" alt="Foto de ${escapeHTML(b.name)}" style="width:60px;height:60px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border-warm);" />
+                      <div>
+                        <strong style="font-size:0.98rem;">${escapeHTML(b.name)}</strong>
+                        <span class="neighborhood-tag" style="margin-left:0.4rem;">${escapeHTML(b.neighborhood)}</span>
+                        <small style="display:block;color:var(--text-muted);margin-top:0.2rem;">
+                          Média: <strong>${b.overallScore.toFixed(1)}</strong> (${b.cakesCount} bolo(s) avaliado(s))
+                        </small>
+                      </div>
                     </div>
                     <div style="display:flex;gap:0.4rem;">
                       <button type="button" class="btn btn-secondary btn-sm js-edit-bakery" data-id="${escapeHTML(b.id)}">Editar</button>
@@ -2389,6 +2519,9 @@ function renderAdminBakeriesTab(state, bakeries, editingBakery) {
 function renderAdminSettingsTab(state) {
   const w = state.settings.weights || { flavor: 25, dough: 25, texture: 25, filling: 25 };
   const bio = state.settings.kaiBio || {};
+  const sessionInfo = getAdminSessionInfo();
+  const isCloudMode = isStaticPagesMode() || sessionInfo.mode === 'github';
+
   return `
     <div class="review-detail-grid">
       <div class="detail-card">
@@ -2457,23 +2590,44 @@ function renderAdminSettingsTab(state) {
       </div>
 
       <div class="detail-card">
-        <h2 style="font-family:var(--font-display);font-size:1.35rem;margin-bottom:0.5rem;">
-          Alterar Senha de Admin (Hash Scrypt)
-        </h2>
-        <p style="font-size:0.86rem;color:var(--text-muted);margin-bottom:1.1rem;">
-          A senha nunca fica salva em texto puro; o servidor armazena apenas o hash criptográfico <code>scrypt</code>.
-        </p>
-        <form id="admin-password-form" style="display:flex;flex-direction:column;gap:0.9rem;">
-          <div class="form-group">
-            <label class="form-label" for="p-current">Senha Atual *</label>
-            <input type="password" id="p-current" class="form-input" required autocomplete="current-password" />
+        ${
+          isCloudMode
+            ? `
+          <h2 style="font-family:var(--font-display);font-size:1.35rem;margin-bottom:0.5rem;">
+            Publicação Automática Ativa
+          </h2>
+          <p style="font-size:0.88rem;color:var(--text-mocha);margin-bottom:1rem;">
+            Seu painel está conectado diretamente ao guia oficial <strong>${escapeHTML(
+              sessionInfo.githubRepo || 'lieRp/kai_avalia'
+            )}</strong>. Todas as fotos, confeitarias e avaliações salvas aqui entram no ar automaticamente em <code>kaiavalia.com.br</code> sem precisar de computador ligado.
+          </p>
+          <div style="padding:0.95rem;background:var(--bg-cream);border:1px solid var(--border-warm);border-radius:var(--radius-sm);font-size:0.85rem;color:var(--text-espresso);">
+            <div style="margin-bottom:0.4rem;"><strong>Status da Sessão:</strong> Conectado (${escapeHTML(
+              sessionInfo.username || 'kai'
+            )})</div>
+            <div><strong>Dica:</strong> Suas fotos enviadas aparecem imediatamente no painel e levam cerca de 40 segundos para atualizar para todos os visitantes.</div>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="p-new">Nova Senha (mínimo 8 caracteres) *</label>
-            <input type="password" id="p-new" class="form-input" required minlength="8" autocomplete="new-password" />
-          </div>
-          <button type="submit" class="btn btn-primary btn-full">Atualizar Senha com Segurança</button>
-        </form>
+        `
+            : `
+          <h2 style="font-family:var(--font-display);font-size:1.35rem;margin-bottom:0.5rem;">
+            Alterar Senha de Admin (Hash Scrypt)
+          </h2>
+          <p style="font-size:0.86rem;color:var(--text-muted);margin-bottom:1.1rem;">
+            A senha nunca fica salva em texto puro; o servidor armazena apenas o hash criptográfico <code>scrypt</code>.
+          </p>
+          <form id="admin-password-form" style="display:flex;flex-direction:column;gap:0.9rem;">
+            <div class="form-group">
+              <label class="form-label" for="p-current">Senha Atual *</label>
+              <input type="password" id="p-current" class="form-input" required autocomplete="current-password" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="p-new">Nova Senha (mínimo 8 caracteres) *</label>
+              <input type="password" id="p-new" class="form-input" required minlength="8" autocomplete="new-password" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Atualizar Senha com Segurança</button>
+          </form>
+        `
+        }
       </div>
     </div>
   `;
@@ -2657,7 +2811,8 @@ function bindAdminEvents() {
     s.addEventListener('input', updateLiveCakeScoreAndDraft);
   });
 
-  document.getElementById('admin-cake-form')?.addEventListener('input', () => {
+  document.getElementById('admin-cake-form')?.addEventListener('input', (e) => {
+    if (e.target && e.target.type === 'file') return;
     if (!uiState.editingCakeId) {
       saveCakeDraft(collectCakeFormPayload());
     }
@@ -2690,35 +2845,195 @@ function bindAdminEvents() {
     });
   });
 
+  let pendingCakeUploadPromise = null;
+  let pendingBakeryUploadPromise = null;
+
+  const syncCakePhotoUI = (url, statusText = null, isBusy = false) => {
+    const clean = String(url || '').trim();
+    const urlInput = document.getElementById('c-photo-url');
+    const previewImg = document.getElementById('c-photo-preview-img');
+    const statusEl = document.getElementById('c-photo-status');
+    const rotateBtn = document.getElementById('c-photo-rotate-btn');
+    const removeBtn = document.getElementById('c-photo-remove-btn');
+    const submitBtn = document.getElementById('c-submit-btn');
+
+    if (urlInput && urlInput.value !== clean) {
+      urlInput.value = clean;
+    }
+    if (previewImg) {
+      delete previewImg.dataset.fallbackStage;
+      previewImg.src = resolveDisplayImageUrl(clean);
+    }
+    if (statusEl) {
+      statusEl.textContent =
+        statusText ||
+        (clean
+          ? '✓ Foto pronta para publicação'
+          : 'Sem foto própria (usará ilustração padrão)');
+    }
+    if (rotateBtn) rotateBtn.disabled = isBusy || !clean;
+    if (removeBtn) removeBtn.disabled = isBusy || !clean;
+    if (submitBtn) {
+      submitBtn.disabled = isBusy;
+      submitBtn.textContent = isBusy
+        ? '⏳ Processando foto...'
+        : uiState.editingCakeId
+        ? 'Salvar Alterações da Avaliação'
+        : 'Publicar Avaliação no Ranking';
+    }
+  };
+
+  const syncBakeryPhotoUI = (url, statusText = null, isBusy = false) => {
+    const clean = String(url || '').trim();
+    const urlInput = document.getElementById('b-photo-url');
+    const previewImg = document.getElementById('b-photo-preview-img');
+    const statusEl = document.getElementById('b-photo-status');
+    const rotateBtn = document.getElementById('b-photo-rotate-btn');
+    const removeBtn = document.getElementById('b-photo-remove-btn');
+    const submitBtn = document.getElementById('b-submit-btn');
+
+    if (urlInput && urlInput.value !== clean) {
+      urlInput.value = clean;
+    }
+    if (previewImg) {
+      delete previewImg.dataset.fallbackStage;
+      previewImg.src = resolveDisplayImageUrl(clean);
+    }
+    if (statusEl) {
+      statusEl.textContent =
+        statusText ||
+        (clean
+          ? '✓ Foto de capa pronta'
+          : 'Sem foto própria (usará ilustração padrão)');
+    }
+    if (rotateBtn) rotateBtn.disabled = isBusy || !clean;
+    if (removeBtn) removeBtn.disabled = isBusy || !clean;
+    if (submitBtn) {
+      submitBtn.disabled = isBusy;
+      submitBtn.textContent = isBusy
+        ? '⏳ Processando foto...'
+        : uiState.editingBakeryId
+        ? 'Atualizar Confeitaria'
+        : 'Salvar Nova Confeitaria';
+    }
+  };
+
   document.getElementById('c-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      showToast('Otimizando e enviando imagem...');
-      const url = await optimizeAndUploadImage(file);
-      document.getElementById('c-photo-url').value = url;
-      updateLiveCakeScoreAndDraft();
-      showToast('Foto otimizada e salva no servidor!');
-    } catch (err) {
-      showToast(err.message, true);
-    }
+    const prevUrl = document.getElementById('c-photo-url')?.value || '';
+    syncCakePhotoUI(prevUrl, '⏳ Otimizando e enviando foto...', true);
+    showToast('Otimizando e enviando imagem...');
+
+    pendingCakeUploadPromise = (async () => {
+      try {
+        const url = await optimizeAndUploadImage(file);
+        syncCakePhotoUI(url, '✓ Foto enviada e pronta para salvar!', false);
+        updateLiveCakeScoreAndDraft();
+        showToast('Foto enviada! Clique em Salvar/Publicar para concluir.');
+      } catch (err) {
+        syncCakePhotoUI(prevUrl, '⚠️ Falha no envio da foto', false);
+        showToast(err.message, true);
+      } finally {
+        pendingCakeUploadPromise = null;
+        e.target.value = '';
+      }
+    })();
+    await pendingCakeUploadPromise;
+  });
+
+  document.getElementById('c-photo-url')?.addEventListener('input', (e) => {
+    syncCakePhotoUI(e.target.value);
+    updateLiveCakeScoreAndDraft();
+  });
+
+  document.getElementById('c-photo-rotate-btn')?.addEventListener('click', async () => {
+    const currentUrl = document.getElementById('c-photo-url')?.value.trim() || '';
+    if (!currentUrl) return;
+    syncCakePhotoUI(currentUrl, '⏳ Girando foto em 90°...', true);
+    pendingCakeUploadPromise = (async () => {
+      try {
+        const rotatedUrl = await rotateAndUploadImage(currentUrl);
+        syncCakePhotoUI(rotatedUrl, '✓ Foto girada em 90°!', false);
+        updateLiveCakeScoreAndDraft();
+        showToast('Foto girada com sucesso!');
+      } catch (err) {
+        syncCakePhotoUI(currentUrl, null, false);
+        showToast(err.message, true);
+      } finally {
+        pendingCakeUploadPromise = null;
+      }
+    })();
+    await pendingCakeUploadPromise;
+  });
+
+  document.getElementById('c-photo-remove-btn')?.addEventListener('click', () => {
+    syncCakePhotoUI('', 'Sem foto própria (usará ilustração padrão)', false);
+    updateLiveCakeScoreAndDraft();
+    showToast('Foto removida do formulário.');
   });
 
   document.getElementById('b-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      showToast('Otimizando foto de capa...');
-      const url = await optimizeAndUploadImage(file);
-      document.getElementById('b-photo-url').value = url;
-      showToast('Foto de capa salva com sucesso!');
-    } catch (err) {
-      showToast(err.message, true);
-    }
+    const prevUrl = document.getElementById('b-photo-url')?.value || '';
+    syncBakeryPhotoUI(prevUrl, '⏳ Otimizando e enviando foto de capa...', true);
+    showToast('Otimizando foto de capa...');
+
+    pendingBakeryUploadPromise = (async () => {
+      try {
+        const url = await optimizeAndUploadImage(file);
+        syncBakeryPhotoUI(url, '✓ Foto de capa enviada!', false);
+        showToast('Foto de capa enviada! Clique em Salvar/Atualizar Confeitaria.');
+      } catch (err) {
+        syncBakeryPhotoUI(prevUrl, '⚠️ Falha no envio da foto', false);
+        showToast(err.message, true);
+      } finally {
+        pendingBakeryUploadPromise = null;
+        e.target.value = '';
+      }
+    })();
+    await pendingBakeryUploadPromise;
+  });
+
+  document.getElementById('b-photo-url')?.addEventListener('input', (e) => {
+    syncBakeryPhotoUI(e.target.value);
+  });
+
+  document.getElementById('b-photo-rotate-btn')?.addEventListener('click', async () => {
+    const currentUrl = document.getElementById('b-photo-url')?.value.trim() || '';
+    if (!currentUrl) return;
+    syncBakeryPhotoUI(currentUrl, '⏳ Girando foto de capa em 90°...', true);
+    pendingBakeryUploadPromise = (async () => {
+      try {
+        const rotatedUrl = await rotateAndUploadImage(currentUrl);
+        syncBakeryPhotoUI(rotatedUrl, '✓ Foto de capa girada em 90°!', false);
+        showToast('Foto de capa girada com sucesso!');
+      } catch (err) {
+        syncBakeryPhotoUI(currentUrl, null, false);
+        showToast(err.message, true);
+      } finally {
+        pendingBakeryUploadPromise = null;
+      }
+    })();
+    await pendingBakeryUploadPromise;
+  });
+
+  document.getElementById('b-photo-remove-btn')?.addEventListener('click', () => {
+    syncBakeryPhotoUI('', 'Sem foto própria (usará ilustração padrão)', false);
+    showToast('Foto de capa removida do formulário.');
   });
 
   document.getElementById('admin-cake-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const submitBtn = document.getElementById('c-submit-btn');
+    if (pendingCakeUploadPromise) {
+      await pendingCakeUploadPromise;
+    }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Publicando no guia...';
+    }
     try {
       await saveCake(collectCakeFormPayload());
       uiState.editingCakeId = null;
@@ -2726,6 +3041,12 @@ function bindAdminEvents() {
       renderAdminView();
     } catch (err) {
       showToast(err.message, true);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = uiState.editingCakeId
+          ? 'Salvar Alterações da Avaliação'
+          : 'Publicar Avaliação no Ranking';
+      }
     }
   });
 
@@ -2745,7 +3066,7 @@ function bindAdminEvents() {
   mainEl.querySelectorAll('.js-del-cake').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const name = btn.getAttribute('data-name') || 'este bolo';
-      if (!window.confirm(`Tem certeza que deseja excluir a avaliação "${name}"? Um backup automático do banco será criado antes.`)) {
+      if (!window.confirm(`Tem certeza que deseja excluir a avaliação "${name}"?`)) {
         return;
       }
       try {
@@ -2760,6 +3081,14 @@ function bindAdminEvents() {
 
   document.getElementById('admin-bakery-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const submitBtn = document.getElementById('b-submit-btn');
+    if (pendingBakeryUploadPromise) {
+      await pendingBakeryUploadPromise;
+    }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Salvando confeitaria...';
+    }
     try {
       await saveBakery({
         id: document.getElementById('b-id').value || null,
@@ -2781,6 +3110,12 @@ function bindAdminEvents() {
       renderAdminView();
     } catch (err) {
       showToast(err.message, true);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = uiState.editingBakeryId
+          ? 'Atualizar Confeitaria'
+          : 'Salvar Nova Confeitaria';
+      }
     }
   });
 
@@ -3025,6 +3360,7 @@ function setupGlobalLinkInterceptor() {
 }
 
 async function bootstrap() {
+  setupGlobalImageFallback();
   try {
     await initStore();
   } catch (err) {

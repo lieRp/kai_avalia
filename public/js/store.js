@@ -13,6 +13,9 @@ const LOCAL_VOTE_COUNTS_KEY = 'sugarcube_visitor_vote_counts_v1';
 const LOCAL_SUGGESTIONS_KEY = 'sugarcube_visitor_suggestions_v1';
 const ADMIN_DRAFT_CAKE_KEY = 'sugarcube_admin_draft_cake_v1';
 const GH_SESSION_STORAGE_KEY = 'sugarcube_gh_admin_session_v1';
+const UPLOAD_PREVIEW_STORAGE_KEY = 'sugarcube_upload_previews_v1';
+
+const UPLOAD_PREVIEW_CACHE = new Map();
 
 // Detecta automaticamente o caminho-base do site (ex: "" na raiz ou "/nome-do-repo" no GitHub Pages)
 const SITE_ROOT_URL = new URL('..', import.meta.url);
@@ -37,7 +40,48 @@ export function resolveSitePath(pathStr) {
   return `${SITE_BASE_PATH}${clean}`;
 }
 
-let staticPagesMode = false;
+function normalizeUploadKey(pathStr) {
+  if (!pathStr || typeof pathStr !== 'string') return '';
+  const idx = pathStr.indexOf('/uploads/');
+  if (idx >= 0) return pathStr.slice(idx).split('?')[0];
+  return pathStr.trim();
+}
+
+export function cacheUploadedPreview(pathStr, dataUrl) {
+  const key = normalizeUploadKey(pathStr);
+  if (!key || !dataUrl) return;
+  UPLOAD_PREVIEW_CACHE.set(key, dataUrl);
+  try {
+    const raw = JSON.parse(sessionStorage.getItem(UPLOAD_PREVIEW_STORAGE_KEY) || '{}');
+    raw[key] = dataUrl;
+    const keys = Object.keys(raw);
+    while (keys.length > 6) {
+      delete raw[keys.shift()];
+    }
+    sessionStorage.setItem(UPLOAD_PREVIEW_STORAGE_KEY, JSON.stringify(raw));
+  } catch (_) {}
+}
+
+export function getCachedUploadPreview(pathStr) {
+  const key = normalizeUploadKey(pathStr);
+  if (!key) return null;
+  if (UPLOAD_PREVIEW_CACHE.has(key)) {
+    return UPLOAD_PREVIEW_CACHE.get(key);
+  }
+  try {
+    const raw = JSON.parse(sessionStorage.getItem(UPLOAD_PREVIEW_STORAGE_KEY) || '{}');
+    if (raw[key]) {
+      UPLOAD_PREVIEW_CACHE.set(key, raw[key]);
+      return raw[key];
+    }
+  } catch (_) {}
+  return null;
+}
+
+let staticPagesMode =
+  typeof window !== 'undefined' &&
+  (window.location.hostname.endsWith('.github.io') ||
+    window.location.hostname.endsWith('kaiavalia.com.br'));
 
 let appState = {
   settings: {
@@ -91,6 +135,29 @@ export function detectDefaultGitHubRepo() {
     return `${owner}/${owner}.github.io`;
   }
   return 'lieRp/kai_avalia';
+}
+
+export function getRawGitHubUploadUrl(pathStr) {
+  if (!pathStr || typeof pathStr !== 'string') return '';
+  const idx = pathStr.indexOf('/uploads/');
+  if (idx < 0) return '';
+  const filename = pathStr.slice(idx + '/uploads/'.length).split('?')[0];
+  if (!filename) return '';
+  const repo = adminSession.githubRepo || detectDefaultGitHubRepo() || 'lieRp/kai_avalia';
+  const branch = adminSession.githubBranch || 'main';
+  return `https://raw.githubusercontent.com/${repo}/${branch}/public/uploads/${filename}`;
+}
+
+export function resolveDisplayImageUrl(pathStr, fallback = '/assets/og-sugarcube.svg') {
+  const clean = String(pathStr || '').trim();
+  if (!clean) {
+    return fallback ? resolveSitePath(fallback) : '';
+  }
+  const cached = getCachedUploadPreview(clean);
+  if (cached) {
+    return cached;
+  }
+  return resolveSitePath(clean);
 }
 
 function slugifyClient(text) {
@@ -175,12 +242,19 @@ function decodeBase64Utf8(b64) {
 
 async function githubApiRequest(endpoint, options = {}) {
   const token = options.token || adminSession.githubToken;
+  const method = (options.method || 'GET').toUpperCase();
   const headers = {
     Accept: 'application/vnd.github+json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
-  const res = await fetch(`https://api.github.com${endpoint}`, {
+  let finalEndpoint = endpoint;
+  if (method === 'GET') {
+    const sep = finalEndpoint.includes('?') ? '&' : '?';
+    finalEndpoint = `${finalEndpoint}${sep}_t=${Date.now()}`;
+  }
+  const res = await fetch(`https://api.github.com${finalEndpoint}`, {
+    cache: 'no-store',
     ...options,
     headers
   });
@@ -189,12 +263,14 @@ async function githubApiRequest(endpoint, options = {}) {
     data = await res.json();
   } catch (_) {}
   if (!res.ok) {
-    throw new Error(data.message || `Erro na API do GitHub (HTTP ${res.status}).`);
+    const err = new Error(data.message || `Erro na API do GitHub (HTTP ${res.status}).`);
+    err.status = res.status;
+    throw err;
   }
   return data;
 }
 
-async function githubPutFile(repo, branch, filePath, contentB64, commitMessage) {
+async function githubPutFile(repo, branch, filePath, contentB64, commitMessage, retryCount = 0) {
   let existingSha = null;
   try {
     const existing = await githubApiRequest(
@@ -216,11 +292,38 @@ async function githubPutFile(repo, branch, filePath, contentB64, commitMessage) 
     body.sha = existingSha;
   }
 
-  return await githubApiRequest(`/repos/${repo}/contents/${filePath}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
+  try {
+    return await githubApiRequest(`/repos/${repo}/contents/${filePath}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    if ((err.status === 409 || String(err.message).includes('does not match')) && retryCount < 2) {
+      await new Promise((r) => setTimeout(r, 450));
+      return await githubPutFile(repo, branch, filePath, contentB64, commitMessage, retryCount + 1);
+    }
+    throw err;
+  }
+}
+
+async function syncLatestStateFromGitHub() {
+  if (!adminSession.authenticated || adminSession.mode !== 'github' || !adminSession.githubRepo) {
+    return;
+  }
+  try {
+    const fileObj = await githubApiRequest(
+      `/repos/${adminSession.githubRepo}/contents/public/data/public.json?ref=${encodeURIComponent(
+        adminSession.githubBranch
+      )}`
+    );
+    if (fileObj && fileObj.content) {
+      const parsed = JSON.parse(decodeBase64Utf8(fileObj.content));
+      if (parsed && Array.isArray(parsed.bakeries) && Array.isArray(parsed.cakes)) {
+        appState = applyLocalVisitorOverlays(parsed);
+      }
+    }
+  } catch (_) {}
 }
 
 async function commitStateToGitHub(commitMessage) {
@@ -235,27 +338,74 @@ async function commitStateToGitHub(commitMessage) {
     publicSuggestions: appState.publicSuggestions || []
   };
   const jsonStr = JSON.stringify(cleanPayload, null, 2);
-  const b64 = encodeBase64Utf8(jsonStr);
+  const repo = adminSession.githubRepo;
+  const branch = adminSession.githubBranch;
 
-  // Salva em public/data/public.json, data/seed.json e docs/data/public.json
+  // Tenta realizar commit único e atômico nos 3 arquivos de estado (seed, public e docs)
+  try {
+    const refData = await githubApiRequest(
+      `/repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`
+    );
+    const latestCommitSha = refData?.object?.sha;
+    if (latestCommitSha) {
+      const commitData = await githubApiRequest(
+        `/repos/${repo}/git/commits/${latestCommitSha}`
+      );
+      const baseTreeSha = commitData?.tree?.sha;
+      if (baseTreeSha) {
+        const treeRes = await githubApiRequest(`/repos/${repo}/git/trees`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base_tree: baseTreeSha,
+            tree: [
+              { path: 'data/seed.json', mode: '100644', type: 'blob', content: jsonStr },
+              { path: 'public/data/public.json', mode: '100644', type: 'blob', content: jsonStr },
+              { path: 'docs/data/public.json', mode: '100644', type: 'blob', content: jsonStr }
+            ]
+          })
+        });
+        if (treeRes?.sha) {
+          const newCommit = await githubApiRequest(`/repos/${repo}/git/commits`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: commitMessage,
+              tree: treeRes.sha,
+              parents: [latestCommitSha]
+            })
+          });
+          if (newCommit?.sha) {
+            await githubApiRequest(
+              `/repos/${repo}/git/refs/heads/${encodeURIComponent(branch)}`,
+              {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sha: newCommit.sha })
+              }
+            );
+            return;
+          }
+        }
+      }
+    }
+  } catch (_) {
+    // Fallback para Contents API caso o token não permita Git Data API
+  }
+
+  const b64 = encodeBase64Utf8(jsonStr);
+  await githubPutFile(repo, branch, 'data/seed.json', b64, commitMessage);
   await githubPutFile(
-    adminSession.githubRepo,
-    adminSession.githubBranch,
+    repo,
+    branch,
     'public/data/public.json',
     b64,
-    commitMessage
-  );
-  await githubPutFile(
-    adminSession.githubRepo,
-    adminSession.githubBranch,
-    'data/seed.json',
-    b64,
-    `${commitMessage} (sync seed)`
+    `${commitMessage} (sync public)`
   );
   try {
     await githubPutFile(
-      adminSession.githubRepo,
-      adminSession.githubBranch,
+      repo,
+      branch,
       'docs/data/public.json',
       b64,
       `${commitMessage} (sync docs)`
@@ -315,7 +465,11 @@ export async function refreshPublicData() {
 }
 
 export async function checkAdminSession() {
-  if (!staticPagesMode && !window.location.hostname.endsWith('.github.io')) {
+  const isGithubDomain =
+    window.location.hostname.endsWith('.github.io') ||
+    window.location.hostname.endsWith('kaiavalia.com.br');
+
+  if (!staticPagesMode && !isGithubDomain) {
     try {
       const json = await apiRequest('/api/auth/me', { method: 'GET' });
       adminSession = {
@@ -330,11 +484,17 @@ export async function checkAdminSession() {
     } catch (_) {
       staticPagesMode = true;
     }
+  } else {
+    staticPagesMode = true;
   }
 
-  // Verificar se há sessão GitHub salva no sessionStorage do navegador
+  // Verificar se há sessão GitHub salva no localStorage ou sessionStorage do navegador
   try {
-    const saved = JSON.parse(sessionStorage.getItem(GH_SESSION_STORAGE_KEY) || 'null');
+    const rawSession =
+      localStorage.getItem(GH_SESSION_STORAGE_KEY) ||
+      sessionStorage.getItem(GH_SESSION_STORAGE_KEY) ||
+      'null';
+    const saved = JSON.parse(rawSession);
     if (saved && saved.githubToken && saved.githubRepo) {
       adminSession = {
         authenticated: true,
@@ -360,8 +520,8 @@ export async function checkAdminSession() {
 }
 
 export async function initStore() {
-  await refreshPublicData();
   await checkAdminSession();
+  await refreshPublicData();
   return appState;
 }
 
@@ -587,7 +747,9 @@ export async function loginAdminWithGitHub(repoFullName, token, branchInput = ''
   };
 
   try {
-    sessionStorage.setItem(GH_SESSION_STORAGE_KEY, JSON.stringify(adminSession));
+    const serialized = JSON.stringify(adminSession);
+    localStorage.setItem(GH_SESSION_STORAGE_KEY, serialized);
+    sessionStorage.setItem(GH_SESSION_STORAGE_KEY, serialized);
   } catch (_) {}
 
   await refreshPublicData();
@@ -597,6 +759,7 @@ export async function loginAdminWithGitHub(repoFullName, token, branchInput = ''
 export async function logoutAdmin() {
   if (adminSession.mode === 'github' || staticPagesMode) {
     try {
+      localStorage.removeItem(GH_SESSION_STORAGE_KEY);
       sessionStorage.removeItem(GH_SESSION_STORAGE_KEY);
     } catch (_) {}
     adminSession = {
@@ -628,6 +791,7 @@ export async function changeAdminPassword(currentPassword, newPassword) {
    ========================================================================== */
 export async function saveBakery(bakeryData) {
   if (staticPagesMode || adminSession.mode === 'github') {
+    await syncLatestStateFromGitHub();
     const name = String(bakeryData.name || '').trim();
     const neighborhood = String(bakeryData.neighborhood || '').trim();
     if (!name || !neighborhood) throw new Error('Informe nome e bairro da confeitaria.');
@@ -635,6 +799,7 @@ export async function saveBakery(bakeryData) {
     const list = [...(appState.bakeries || [])];
     const isEdit = Boolean(bakeryData.id);
     const id = bakeryData.id || `bak-${Date.now()}`;
+    const existing = list.find((b) => b.id === id);
     const baseSlug = slugifyClient(`${name}-${neighborhood}`);
     let slug = baseSlug;
     let c = 2;
@@ -657,7 +822,7 @@ export async function saveBakery(bakeryData) {
       coverPhoto: String(bakeryData.coverPhoto || '').trim(),
       description: String(bakeryData.description || '').trim(),
       isFeaturedPartner: Boolean(bakeryData.isFeaturedPartner),
-      createdAt: bakeryData.createdAt || new Date().toISOString().slice(0, 10)
+      createdAt: bakeryData.createdAt || existing?.createdAt || new Date().toISOString().slice(0, 10)
     };
 
     const idx = list.findIndex((b) => b.id === id);
@@ -685,6 +850,7 @@ export async function saveBakery(bakeryData) {
 
 export async function deleteBakery(bakeryId) {
   if (staticPagesMode || adminSession.mode === 'github') {
+    await syncLatestStateFromGitHub();
     const target = (appState.bakeries || []).find((b) => b.id === bakeryId);
     appState.bakeries = (appState.bakeries || []).filter((b) => b.id !== bakeryId);
     appState.cakes = (appState.cakes || []).filter((c) => c.bakeryId !== bakeryId);
@@ -700,6 +866,7 @@ export async function deleteBakery(bakeryId) {
 
 export async function saveCake(cakeData) {
   if (staticPagesMode || adminSession.mode === 'github') {
+    await syncLatestStateFromGitHub();
     const name = String(cakeData.name || '').trim();
     const bakeryId = String(cakeData.bakeryId || '').trim();
     if (!name || !bakeryId) throw new Error('Informe o nome do bolo e a confeitaria.');
@@ -765,6 +932,7 @@ export async function saveCake(cakeData) {
 
 export async function deleteCake(cakeId) {
   if (staticPagesMode || adminSession.mode === 'github') {
+    await syncLatestStateFromGitHub();
     const target = (appState.cakes || []).find((c) => c.id === cakeId);
     appState.cakes = (appState.cakes || []).filter((c) => c.id !== cakeId);
     await commitStateToGitHub(`🗑️ Remove avaliação: ${target?.name || cakeId}`);
@@ -779,6 +947,7 @@ export async function deleteCake(cakeId) {
 
 export async function saveSettings(newSettings) {
   if (staticPagesMode || adminSession.mode === 'github') {
+    await syncLatestStateFromGitHub();
     appState.settings = {
       ...appState.settings,
       ...newSettings,
@@ -817,6 +986,7 @@ export async function fetchAdminSuggestions() {
 
 export async function promoteSuggestionToUpcoming(sugId) {
   if (staticPagesMode || adminSession.mode === 'github') {
+    await syncLatestStateFromGitHub();
     const allSugs = await fetchAdminSuggestions();
     const sug = allSugs.find((s) => s.id === sugId);
     if (!sug) return;
@@ -868,6 +1038,7 @@ export async function deleteSuggestion(sugId) {
 
 export async function addUpcomingBakery(data) {
   if (staticPagesMode || adminSession.mode === 'github') {
+    await syncLatestStateFromGitHub();
     appState.upcomingBakeries = [
       ...(appState.upcomingBakeries || []),
       {
@@ -893,6 +1064,7 @@ export async function addUpcomingBakery(data) {
 
 export async function deleteUpcomingBakery(upId) {
   if (staticPagesMode || adminSession.mode === 'github') {
+    await syncLatestStateFromGitHub();
     appState.upcomingBakeries = (appState.upcomingBakeries || []).filter((u) => u.id !== upId);
     await commitStateToGitHub(`🗑️ Remove item da fila Em Breve`);
     return;
@@ -1047,6 +1219,9 @@ export function clearCakeDraft() {
 }
 
 export async function optimizeAndUploadImage(file) {
+  if (!file) {
+    throw new Error('Selecione um arquivo de imagem válido.');
+  }
   const dataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -1067,10 +1242,17 @@ export async function optimizeAndUploadImage(file) {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
+        resolve(canvas.toDataURL('image/jpeg', 0.84));
       };
-      img.onerror = () => reject(new Error('Não foi possível processar a imagem selecionada.'));
+      img.onerror = () =>
+        reject(
+          new Error(
+            'Formato de imagem não suportado pelo navegador. Use fotos em JPG, PNG ou WebP.'
+          )
+        );
       img.src = reader.result;
     };
     reader.onerror = () => reject(new Error('Erro ao ler o arquivo de imagem.'));
@@ -1079,7 +1261,7 @@ export async function optimizeAndUploadImage(file) {
 
   if (staticPagesMode || adminSession.mode === 'github') {
     if (!adminSession.authenticated || !adminSession.githubRepo) {
-      throw new Error('Faça login com seu Token do GitHub para enviar imagens ao repositório.');
+      throw new Error('Faça login no painel para enviar imagens ao guia.');
     }
     const b64Part = dataUrl.split(',')[1];
     const safeStem = slugifyClient((file.name || 'bolo').replace(/\.[^.]+$/, '')).slice(0, 28);
@@ -1091,7 +1273,9 @@ export async function optimizeAndUploadImage(file) {
       b64Part,
       `📸 Envia foto de avaliação: ${filename}`
     );
-    return `/uploads/${filename}`;
+    const uploadedPath = `/uploads/${filename}`;
+    cacheUploadedPreview(uploadedPath, dataUrl);
+    return uploadedPath;
   }
 
   const json = await apiRequest('/api/admin/upload', {
@@ -1101,5 +1285,82 @@ export async function optimizeAndUploadImage(file) {
       dataUrl
     })
   });
+  cacheUploadedPreview(json.url, dataUrl);
+  return json.url;
+}
+
+export async function rotateAndUploadImage(currentUrl) {
+  const cleanUrl = String(currentUrl || '').trim();
+  if (!cleanUrl) {
+    throw new Error('Nenhuma foto selecionada para girar.');
+  }
+
+  const loadForRotation = (src) =>
+    new Promise((resolve, reject) => {
+      if (!src) return reject(new Error('URL vazia'));
+      const img = new Image();
+      if (!src.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Falha ao carregar imagem para rotação.'));
+      img.src = src;
+    });
+
+  let img = null;
+  const candidates = [
+    getCachedUploadPreview(cleanUrl),
+    resolveSitePath(cleanUrl),
+    getRawGitHubUploadUrl(cleanUrl)
+  ].filter(Boolean);
+
+  for (const src of candidates) {
+    try {
+      img = await loadForRotation(src);
+      if (img) break;
+    } catch (_) {}
+  }
+
+  if (!img) {
+    throw new Error('Não foi possível carregar a foto atual para girar.');
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = img.height;
+  canvas.height = img.width;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+  const rotatedDataUrl = canvas.toDataURL('image/jpeg', 0.86);
+
+  if (staticPagesMode || adminSession.mode === 'github') {
+    if (!adminSession.authenticated || !adminSession.githubRepo) {
+      throw new Error('Faça login no painel para salvar a foto girada.');
+    }
+    const b64Part = rotatedDataUrl.split(',')[1];
+    const filename = `kai-${Date.now()}-rot.jpg`;
+    await githubPutFile(
+      adminSession.githubRepo,
+      adminSession.githubBranch,
+      `public/uploads/${filename}`,
+      b64Part,
+      `📸 Gira foto de avaliação: ${filename}`
+    );
+    const uploadedPath = `/uploads/${filename}`;
+    cacheUploadedPreview(uploadedPath, rotatedDataUrl);
+    return uploadedPath;
+  }
+
+  const json = await apiRequest('/api/admin/upload', {
+    method: 'POST',
+    body: JSON.stringify({
+      filename: 'foto-girada.jpg',
+      dataUrl: rotatedDataUrl
+    })
+  });
+  cacheUploadedPreview(json.url, rotatedDataUrl);
   return json.url;
 }

@@ -5,6 +5,8 @@
  * - Inclui a URL direta do site/avaliação no rodapé para gerar tráfego real dos Stories
  */
 
+import { resolveDisplayImageUrl, getRawGitHubUploadUrl } from './store.js';
+
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -43,13 +45,27 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 4) {
 
 async function loadImageSafe(url) {
   if (!url) return null;
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
+  const tryLoad = (src) =>
+    new Promise((resolve) => {
+      if (!src) return resolve(null);
+      const img = new Image();
+      if (!src.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+
+  const primary = resolveDisplayImageUrl(url, '');
+  let loaded = await tryLoad(primary);
+  if (!loaded && String(url).includes('/uploads/')) {
+    const rawFallback = getRawGitHubUploadUrl(url);
+    if (rawFallback) {
+      loaded = await tryLoad(rawFallback);
+    }
+  }
+  return loaded;
 }
 
 async function ensureCanvasFontsLoaded() {
