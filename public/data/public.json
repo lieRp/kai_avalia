@@ -579,6 +579,38 @@
         "agreeWithKai": 0,
         "wantToTry": 0
       }
+    },
+    {
+      "id": "cake-1794080775767",
+      "bakeryId": "bak-1793984103292",
+      "slug": "bolo-nuvem-centro",
+      "name": "Bolo nuvem",
+      "category": "Fatia de Vitrine",
+      "flavorType": "",
+      "photos": [
+        "/uploads/kai-1794080762203-img-0834.jpg"
+      ],
+      "scoreFlavor": 8,
+      "scoreDough": 7,
+      "scoreTexture": 8,
+      "scoreFilling": 9,
+      "kaiVerdict": "A massa é fofinha esperava mais sabor\nMousse de ninho da cobertura tem bastante gosto de ninho original bem saboroso\nO recheio muito bom",
+      "sensoryNotes": {
+        "crumbPoint": "",
+        "mouthfeel": "",
+        "moisture": "",
+        "sweetness": ""
+      },
+      "approxPrice": 18,
+      "visitedAt": "2026-11-07",
+      "reevaluatedAt": null,
+      "reevaluationNote": "",
+      "editionYear": 2026,
+      "reactions": {
+        "waterInMouth": 0,
+        "agreeWithKai": 0,
+        "wantToTry": 0
+      }
     }
   ],
   "upcomingBakeries": [],
