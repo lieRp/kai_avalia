@@ -643,6 +643,38 @@
         "agreeWithKai": 0,
         "wantToTry": 0
       }
+    },
+    {
+      "id": "cake-1795550529979",
+      "bakeryId": "bak-1793755749135",
+      "slug": "fatia-alegria-noide-2",
+      "name": "Fatia alegria",
+      "category": "Fatia de Vitrine",
+      "flavorType": "",
+      "photos": [
+        "/uploads/kai-1795550521643-img-1244.jpg"
+      ],
+      "scoreFlavor": 6.5,
+      "scoreDough": 1.5,
+      "scoreTexture": 6.5,
+      "scoreFilling": 9,
+      "kaiVerdict": "O recheio veio ótimo e no ponto \nMassa veio mais macia do q a última porém veio com um gosto de bolo estragada",
+      "sensoryNotes": {
+        "crumbPoint": "",
+        "mouthfeel": "",
+        "moisture": "",
+        "sweetness": ""
+      },
+      "approxPrice": 22,
+      "visitedAt": "2026-11-24",
+      "reevaluatedAt": null,
+      "reevaluationNote": "",
+      "editionYear": 2026,
+      "reactions": {
+        "waterInMouth": 0,
+        "agreeWithKai": 0,
+        "wantToTry": 0
+      }
     }
   ],
   "upcomingBakeries": [],
