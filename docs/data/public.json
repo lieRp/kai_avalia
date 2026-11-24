@@ -611,6 +611,38 @@
         "agreeWithKai": 0,
         "wantToTry": 0
       }
+    },
+    {
+      "id": "cake-1795549970195",
+      "bakeryId": "bak-1793755749135",
+      "slug": "bolo-de-pote-casadinho-noide",
+      "name": "Bolo de pote casadinho",
+      "category": "Fatia de Vitrine",
+      "flavorType": "",
+      "photos": [
+        "/uploads/kai-1795549956510-img-1243.jpg"
+      ],
+      "scoreFlavor": 7,
+      "scoreDough": 7,
+      "scoreTexture": 7,
+      "scoreFilling": 9,
+      "kaiVerdict": "A camada de biscoito tava um pouco dura e o gosto um teco amargo\nRecheio muito gostoso como sempre",
+      "sensoryNotes": {
+        "crumbPoint": "",
+        "mouthfeel": "",
+        "moisture": "",
+        "sweetness": ""
+      },
+      "approxPrice": 24,
+      "visitedAt": "2026-11-24",
+      "reevaluatedAt": null,
+      "reevaluationNote": "",
+      "editionYear": 2026,
+      "reactions": {
+        "waterInMouth": 0,
+        "agreeWithKai": 0,
+        "wantToTry": 0
+      }
     }
   ],
   "upcomingBakeries": [],
