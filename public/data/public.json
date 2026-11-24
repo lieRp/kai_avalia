@@ -576,7 +576,7 @@
       "editionYear": 2026,
       "reactions": {
         "waterInMouth": 0,
-        "agreeWithKai": 0,
+        "agreeWithKai": 1,
         "wantToTry": 0
       }
     },
@@ -666,6 +666,36 @@
         "sweetness": ""
       },
       "approxPrice": 22,
+      "visitedAt": "2026-11-24",
+      "reevaluatedAt": null,
+      "reevaluationNote": "",
+      "editionYear": 2026,
+      "reactions": {
+        "waterInMouth": 0,
+        "agreeWithKai": 0,
+        "wantToTry": 0
+      }
+    },
+    {
+      "id": "cake-1795551432496",
+      "bakeryId": "bak-fsa-atelier-getulio",
+      "slug": "teste-wally-getulio-vargas",
+      "name": "teste wally",
+      "category": "Fatia de Vitrine",
+      "flavorType": "",
+      "photos": [],
+      "scoreFlavor": 9,
+      "scoreDough": 9,
+      "scoreTexture": 9,
+      "scoreFilling": 9,
+      "kaiVerdict": "bem bom",
+      "sensoryNotes": {
+        "crumbPoint": "",
+        "mouthfeel": "",
+        "moisture": "",
+        "sweetness": ""
+      },
+      "approxPrice": 22.5,
       "visitedAt": "2026-11-24",
       "reevaluatedAt": null,
       "reevaluationNote": "",
